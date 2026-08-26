@@ -1,0 +1,51 @@
+# Workflow de integración continua para PréstamoLab CTMA.
+# Traduce a GitHub Actions lo descrito en el documento
+# "Herramientas para Producto PréstamoLab CTMA": compilar con Gradle,
+# ejecutar pruebas unitarias (testDebugUnitTest), correr Android Lint
+# y conservar el APK como artefacto de cada ejecución.
+name: Android CI
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  build-test-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Dar permisos de ejecución a Gradle
+        run: chmod +x ./gradlew
+
+      - name: Compilar (Gradle assembleDebug)
+        run: ./gradlew assembleDebug
+
+      - name: Ejecutar pruebas unitarias
+        run: ./gradlew testDebugUnitTest
+
+      - name: Ejecutar Android Lint
+        run: ./gradlew lintDebug
+
+      - name: Conservar APK generado
+        uses: actions/upload-artifact@v4
+        with:
+          name: prestamolab-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Conservar reporte de Lint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
