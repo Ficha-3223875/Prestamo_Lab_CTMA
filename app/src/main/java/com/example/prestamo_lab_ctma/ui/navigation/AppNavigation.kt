@@ -20,6 +20,7 @@ import com.example.prestamo_lab_ctma.ui.misprestamos.MisSolicitudesScreen
 import com.example.prestamo_lab_ctma.ui.solicitud.SolicitarPrestamoScreen
 import com.example.prestamo_lab_ctma.ui.solicitud.SolicitudDetalleScreen
 import com.example.prestamo_lab_ctma.ui.viewmodel.PrestamoViewModel
+import com.example.prestamo_lab_ctma.ui.viewmodel.PrestamoViewModelFactory
 
 sealed class Screen(val route: String) {
     object Catalogo : Screen("catalogo")
