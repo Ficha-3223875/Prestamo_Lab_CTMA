@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.dp
 import com.example.prestamo_lab_ctma.model.Equipo
 import com.example.prestamo_lab_ctma.model.SolicitudPrestamo
 
-@OptIn(ExperimentalMaterial3Api::)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MisSolicitudesScreen(
     solicitudes: List<SolicitudPrestamo>,

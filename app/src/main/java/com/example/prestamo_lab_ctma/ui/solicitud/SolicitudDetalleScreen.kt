@@ -11,7 +11,7 @@ import com.example.prestamo_lab_ctma.model.Equipo
 import com.example.prestamo_lab_ctma.model.EstadoSolicitud
 import com.example.prestamo_lab_ctma.model.SolicitudPrestamo
 
-@OptIn(ExperimentalMaterial3Api::)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SolicitudDetalleScreen(
     solicitud: SolicitudPrestamo?,
