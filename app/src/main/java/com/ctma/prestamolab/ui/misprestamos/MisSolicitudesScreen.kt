@@ -15,6 +15,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.ctma.prestamolab.model.SolicitudPrestamo
 
@@ -46,7 +48,13 @@ fun MisSolicitudesScreen(
                 ) {
                     items(solicitudes, key = { it.id }) { solicitud ->
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics {
+                                    contentDescription = "Solicitud número ${solicitud.id}, " +
+                                        "estado ${solicitud.estado.name}, " +
+                                        "destino ${solicitud.ambienteDestino}"
+                                },
                             onClick = { onSolicitudClick(solicitud.id) }
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {

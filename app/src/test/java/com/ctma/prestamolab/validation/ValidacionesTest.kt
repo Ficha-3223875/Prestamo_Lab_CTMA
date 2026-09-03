@@ -3,10 +3,15 @@ package com.ctma.prestamolab.validation
 import com.ctma.prestamolab.model.CategoriaEquipo
 import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.EstadoEquipo
+import com.ctma.prestamolab.model.EstadoSolicitud
+import com.ctma.prestamolab.model.SolicitudPrestamo
 import com.ctma.prestamolab.model.duracionValida
 import com.ctma.prestamolab.model.equipoDisponibleParaSolicitud
 import com.ctma.prestamolab.model.propositoValido
-import org.junit.Assert.assertEquals
+import com.ctma.prestamolab.model.puedeAprobarse
+import com.ctma.prestamolab.model.puedeDevolverse
+import com.ctma.prestamolab.model.puedeEntregarse
+import com.ctma.prestamolab.model.puedeRechazarse
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -80,5 +85,51 @@ class ValidacionesTest {
     @Test
     fun `equipo nulo (id inexistente) no puede solicitarse`() {
         assertFalse(equipoDisponibleParaSolicitud(null))
+    }
+
+    // ---- HU-07 / RN-10, RN-11, RN-12: transiciones de gestión ----
+
+    private fun solicitud(estado: EstadoSolicitud) = SolicitudPrestamo(
+        id = 1,
+        equipoId = 1,
+        ambienteDestino = "Ambiente 302",
+        proposito = "Práctica de laboratorio de electrónica",
+        duracionHoras = 2,
+        estado = estado
+    )
+
+    @Test
+    fun `solicitud SOLICITADA puede aprobarse`() {
+        assertTrue(puedeAprobarse(solicitud(EstadoSolicitud.SOLICITADA)))
+    }
+
+    @Test
+    fun `solicitud APROBADA no puede volver a aprobarse`() {
+        assertFalse(puedeAprobarse(solicitud(EstadoSolicitud.APROBADA)))
+    }
+
+    @Test
+    fun `solicitud SOLICITADA puede rechazarse`() {
+        assertTrue(puedeRechazarse(solicitud(EstadoSolicitud.SOLICITADA)))
+    }
+
+    @Test
+    fun `solicitud APROBADA puede entregarse`() {
+        assertTrue(puedeEntregarse(solicitud(EstadoSolicitud.APROBADA)))
+    }
+
+    @Test
+    fun `solicitud SOLICITADA no puede entregarse directamente`() {
+        assertFalse(puedeEntregarse(solicitud(EstadoSolicitud.SOLICITADA)))
+    }
+
+    @Test
+    fun `solicitud ENTREGADA puede devolverse`() {
+        assertTrue(puedeDevolverse(solicitud(EstadoSolicitud.ENTREGADA)))
+    }
+
+    @Test
+    fun `solicitud APROBADA no puede devolverse sin haber sido entregada`() {
+        assertFalse(puedeDevolverse(solicitud(EstadoSolicitud.APROBADA)))
     }
 }

@@ -107,6 +107,10 @@ fun PrestamoNavGraph(
             val solicitud = viewModel.obtenerSolicitud(solicitudId)
             SolicitudDetalleScreen(
                 solicitud = solicitud,
+                onAprobar = { id -> viewModel.aprobarSolicitud(id) },
+                onRechazar = { id -> viewModel.rechazarSolicitud(id) },
+                onEntregar = { id -> viewModel.entregarSolicitud(id) },
+                onDevolver = { id -> viewModel.devolverSolicitud(id) },
                 onCancelar = { id -> viewModel.cancelarSolicitud(id) },
                 onVolver = { navController.popBackStack() }
             )

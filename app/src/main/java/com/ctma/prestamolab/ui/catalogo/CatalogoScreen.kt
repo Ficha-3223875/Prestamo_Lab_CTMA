@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.EstadoEquipo
@@ -42,7 +44,15 @@ fun CatalogoScreen(
             TopAppBar(
                 title = { Text("PréstamoLab CTMA") },
                 actions = {
-                    IconButton(onClick = onVerMisSolicitudes) { Icon( imageVector = Icons.Filled.List, contentDescription = "Ver mis solicitudes" ) }
+                    // Corrección post-entrega: el ícono original quedó sin
+                    // acción conectada. Se envuelve en IconButton para que
+                    // dispare la navegación a "Mis solicitudes" (HU-05).
+                    IconButton(onClick = onVerMisSolicitudes) {
+                        Icon(
+                            imageVector = Icons.Filled.List,
+                            contentDescription = "Ver mis solicitudes"
+                        )
+                    }
                 }
             )
         }
@@ -67,15 +77,22 @@ fun CatalogoScreen(
 
 @Composable
 private fun EquipoCard(equipo: Equipo, onClick: () -> Unit) {
+    val estadoTexto = textoEstado(equipo.estado)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                // HU-10: un lector de pantalla anuncia nombre + estado en una
+                // sola frase, no cada Text por separado sin contexto.
+                contentDescription = "${equipo.nombre}, categoría ${equipo.categoria.name}, estado $estadoTexto"
+            },
         colors = CardDefaults.cardColors(),
         onClick = onClick
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = equipo.nombre)
             Text(text = "Categoría: ${equipo.categoria.name}")
-            Text(text = "Estado: ${textoEstado(equipo.estado)}")
+            Text(text = "Estado: $estadoTexto")
         }
     }
 }

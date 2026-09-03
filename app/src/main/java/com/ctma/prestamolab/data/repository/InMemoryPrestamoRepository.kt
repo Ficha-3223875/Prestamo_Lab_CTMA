@@ -5,6 +5,10 @@ import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.EstadoEquipo
 import com.ctma.prestamolab.model.EstadoSolicitud
 import com.ctma.prestamolab.model.SolicitudPrestamo
+import com.ctma.prestamolab.model.puedeAprobarse
+import com.ctma.prestamolab.model.puedeDevolverse
+import com.ctma.prestamolab.model.puedeEntregarse
+import com.ctma.prestamolab.model.puedeRechazarse
 import com.ctma.prestamolab.model.validarFormularioSolicitud
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -92,4 +96,64 @@ class InMemoryPrestamoRepository : PrestamoRepository {
         }
         Result.success(Unit)
     }
+
+    /**
+     * Transición genérica reutilizada por aprobar/rechazar/entregar/devolver
+     * (HU-07): valida con [condicion], cambia el estado de la solicitud y,
+     * si aplica, el estado del equipo asociado.
+     */
+    private fun transicionar(
+        id: Int,
+        condicion: (SolicitudPrestamo?) -> Boolean,
+        nuevoEstadoSolicitud: EstadoSolicitud,
+        nuevoEstadoEquipo: EstadoEquipo?,
+        mensajeError: String
+    ): Result<Unit> = synchronized(this) {
+        val index = solicitudes.indexOfFirst { it.id == id }
+        val solicitud = index.takeIf { it != -1 }?.let { solicitudes[it] }
+        if (!condicion(solicitud)) {
+            return@synchronized Result.failure(IllegalStateException(mensajeError))
+        }
+        solicitudes[index] = solicitud!!.copy(estado = nuevoEstadoSolicitud)
+
+        if (nuevoEstadoEquipo != null) {
+            val equipoIndex = equipos.indexOfFirst { it.id == solicitud.equipoId }
+            if (equipoIndex != -1) {
+                equipos[equipoIndex] = equipos[equipoIndex].copy(estado = nuevoEstadoEquipo)
+            }
+        }
+        Result.success(Unit)
+    }
+
+    override fun aprobarSolicitud(id: Int): Result<Unit> = transicionar(
+        id = id,
+        condicion = ::puedeAprobarse,
+        nuevoEstadoSolicitud = EstadoSolicitud.APROBADA,
+        nuevoEstadoEquipo = null, // el equipo sigue RESERVADO hasta la entrega
+        mensajeError = "Solo una solicitud SOLICITADA puede aprobarse."
+    )
+
+    override fun rechazarSolicitud(id: Int): Result<Unit> = transicionar(
+        id = id,
+        condicion = ::puedeRechazarse,
+        nuevoEstadoSolicitud = EstadoSolicitud.RECHAZADA,
+        nuevoEstadoEquipo = EstadoEquipo.DISPONIBLE, // se libera al rechazar
+        mensajeError = "Solo una solicitud SOLICITADA puede rechazarse."
+    )
+
+    override fun entregarSolicitud(id: Int): Result<Unit> = transicionar(
+        id = id,
+        condicion = ::puedeEntregarse,
+        nuevoEstadoSolicitud = EstadoSolicitud.ENTREGADA,
+        nuevoEstadoEquipo = EstadoEquipo.PRESTADO,
+        mensajeError = "Solo una solicitud APROBADA puede marcarse como entregada."
+    )
+
+    override fun devolverSolicitud(id: Int): Result<Unit> = transicionar(
+        id = id,
+        condicion = ::puedeDevolverse,
+        nuevoEstadoSolicitud = EstadoSolicitud.DEVUELTA,
+        nuevoEstadoEquipo = EstadoEquipo.DISPONIBLE,
+        mensajeError = "Solo una solicitud ENTREGADA puede marcarse como devuelta."
+    )
 }

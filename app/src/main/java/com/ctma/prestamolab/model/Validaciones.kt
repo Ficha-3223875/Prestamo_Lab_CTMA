@@ -26,6 +26,21 @@ fun equipoDisponibleParaSolicitud(equipo: Equipo?): Boolean =
 fun puedeCancelarse(solicitud: SolicitudPrestamo?): Boolean =
     solicitud != null && solicitud.estado == EstadoSolicitud.SOLICITADA
 
+/** RN-10: solo una solicitud SOLICITADA puede aprobarse o rechazarse. */
+fun puedeAprobarse(solicitud: SolicitudPrestamo?): Boolean =
+    solicitud != null && solicitud.estado == EstadoSolicitud.SOLICITADA
+
+fun puedeRechazarse(solicitud: SolicitudPrestamo?): Boolean =
+    solicitud != null && solicitud.estado == EstadoSolicitud.SOLICITADA
+
+/** RN-11: solo una solicitud APROBADA puede marcarse como ENTREGADA. */
+fun puedeEntregarse(solicitud: SolicitudPrestamo?): Boolean =
+    solicitud != null && solicitud.estado == EstadoSolicitud.APROBADA
+
+/** RN-12: solo una solicitud ENTREGADA puede marcarse como DEVUELTA. */
+fun puedeDevolverse(solicitud: SolicitudPrestamo?): Boolean =
+    solicitud != null && solicitud.estado == EstadoSolicitud.ENTREGADA
+
 /**
  * Valida el formulario completo de una solicitud nueva.
  * Devuelve null si es válido, o un mensaje específico por campo si no lo es

@@ -20,4 +20,12 @@ interface PrestamoRepository {
         duracionHoras: Int
     ): Result<SolicitudPrestamo>
     fun cancelarSolicitud(id: Int): Result<Unit>
+
+    // HU-07: gestión completa del ciclo de vida de una solicitud, no solo
+    // consulta. RN-10/RN-11/RN-12 controlan qué transición es válida desde
+    // qué estado.
+    fun aprobarSolicitud(id: Int): Result<Unit>
+    fun rechazarSolicitud(id: Int): Result<Unit>
+    fun entregarSolicitud(id: Int): Result<Unit>
+    fun devolverSolicitud(id: Int): Result<Unit>
 }

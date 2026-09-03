@@ -20,7 +20,8 @@ No reemplaza ningún sistema institucional real, no maneja inventario oficial y 
 12. [Informe ejecutivo de calidad](#12-informe-ejecutivo-de-calidad)
 13. [Instalación y ejecución](#13-instalación-y-ejecución)
 14. [Limitaciones conocidas](#14-limitaciones-conocidas)
-15. [Uso responsable de inteligencia artificial](#15-uso-responsable-de-inteligencia-artificial)
+15. [Gestión completa del ciclo de vida (HU-07) y accesibilidad (HU-10)](#15-gestión-completa-del-ciclo-de-vida-hu-07-y-accesibilidad-hu-10)
+16. [Uso responsable de inteligencia artificial](#16-uso-responsable-de-inteligencia-artificial)
 
 ---
 
@@ -146,6 +147,9 @@ Un identificador inexistente no cierra la app: la pantalla de destino recibe `nu
 | RN-07 | Solo SOLICITADA puede cancelarse en el MVP | `Validaciones.kt`, `InMemoryPrestamoRepository.cancelarSolicitud` |
 | RN-08 | ID inexistente produce estado recuperable | `PrestamoNavGraph` + pantallas de detalle |
 | RN-09 | Datos sintéticos | catálogo semilla en `InMemoryPrestamoRepository` |
+| RN-10 | Solo SOLICITADA puede aprobarse o rechazarse | `Validaciones.kt`, `InMemoryPrestamoRepository.aprobarSolicitud` / `rechazarSolicitud` |
+| RN-11 | Solo APROBADA puede marcarse ENTREGADA (equipo pasa a PRESTADO) | `Validaciones.kt`, `InMemoryPrestamoRepository.entregarSolicitud` |
+| RN-12 | Solo ENTREGADA puede marcarse DEVUELTA (equipo vuelve a DISPONIBLE) | `Validaciones.kt`, `InMemoryPrestamoRepository.devolverSolicitud` |
 
 ## 6. Desarrollo del incremento Android
 
@@ -314,9 +318,32 @@ También puede compilarse por línea de comandos:
 ## 14. Limitaciones conocidas
 
 - No hay persistencia real: los datos se pierden al cerrar la app (Repository en memoria, punto 11 del alcance mínimo).
-- Los estados APROBADA, ENTREGADA y DEVUELTA están modelados pero no tienen una transición disponible desde la UI en este primer incremento; quedan como base para un siguiente Sprint.
-- No hay autenticación real de usuarios ni control de roles.
+- No hay autenticación real de usuarios ni control de roles: cualquier persona que use la app puede aprobar, rechazar, entregar o devolver una solicitud (no está diferenciado un rol "gestor" de un rol "solicitante" en la UI).
+- Las pruebas instrumentadas (`app/src/androidTest`) cubren un escenario representativo del catálogo (TC-01); no son todavía la suite completa de 18 casos en formato instrumentado, esos siguen documentados como ejecución manual en la sección 8.
 
-## 15. Uso responsable de inteligencia artificial
+## 15. Gestión completa del ciclo de vida (HU-07) y accesibilidad (HU-10)
+
+Estas dos secciones se agregaron después de una revisión de issues del equipo, para cerrar brechas frente al alcance inicial del incremento.
+
+**Gestión completa de solicitudes.** Además de cancelar, la pantalla de detalle de una solicitud ahora permite, según el estado actual:
+
+- `SOLICITADA` → **Aprobar** (pasa a `APROBADA`), **Rechazar** (pasa a `RECHAZADA` y libera el equipo) o **Cancelar**.
+- `APROBADA` → **Marcar como entregada** (pasa a `ENTREGADA`, el equipo pasa a `PRESTADO`).
+- `ENTREGADA` → **Registrar devolución** (pasa a `DEVUELTA`, el equipo vuelve a `DISPONIBLE`).
+- `DEVUELTA`, `CANCELADA`, `RECHAZADA` son estados finales: la pantalla lo indica y no ofrece más acciones.
+
+Las reglas RN-10 a RN-12 (`Validaciones.kt`) controlan qué transición es válida desde qué estado, con sus pruebas unitarias correspondientes en `ValidacionesTest.kt`.
+
+**Accesibilidad y manejo de errores.**
+
+- Las tarjetas de equipo y de solicitud tienen `Modifier.semantics { contentDescription = ... }` con una frase completa (nombre + categoría + estado, o número + estado + destino), para que un lector de pantalla anuncie el contexto completo en vez de leer cada `Text` suelto.
+- La tipografía usa `sp` (no `dp`), por lo que respeta el escalado de fuente del sistema operativo.
+- La disponibilidad de un equipo nunca se comunica solo con color: siempre va acompañada de texto ("Disponible", "Reservado", "Prestado").
+- Un `equipoId` o `solicitudId` inexistente no cierra la app (RN-08): la pantalla de destino muestra un mensaje recuperable.
+- Las acciones de gestión (aprobar, rechazar, entregar, devolver, cancelar, crear) están envueltas en `try/catch` en el ViewModel, además del manejo con `Result` del Repository: un fallo inesperado no previsto también se comunica como mensaje recuperable en vez de cerrar la app.
+
+**Pendiente honesto**: no se hicieron pruebas formales con TalkBack activado, y no todos los botones tienen `contentDescription` explícito más allá del texto visible que ya traen por defecto (Material 3 usa el texto del `Button` como etiqueta accesible automáticamente, así que technically ya son anunciables, pero no se verificó manualmente con el lector de pantalla).
+
+## 16. Uso responsable de inteligencia artificial
 
 Se utilizó IA como apoyo para redactar y revisar código base y documentación del proyecto, siguiendo la guía "Uso responsable de inteligencia artificial" del curso. Toda sugerencia fue comprendida, adaptada y verificada por el equipo antes de incorporarse; ningún resultado de prueba fue inventado.

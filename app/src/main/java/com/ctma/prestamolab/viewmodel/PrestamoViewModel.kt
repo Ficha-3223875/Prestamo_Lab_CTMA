@@ -75,16 +75,56 @@ class PrestamoViewModel(
 
     fun cancelarSolicitud(id: Int) {
         viewModelScope.launch {
-            repository.cancelarSolicitud(id)
-                .onSuccess {
-                    cargarDatos()
-                    _uiState.update { it.copy(mensaje = "Solicitud cancelada.") }
-                }
-                .onFailure { error ->
-                    _uiState.update { it.copy(mensaje = error.message ?: "No fue posible cancelar la solicitud.") }
-                }
+            try {
+                repository.cancelarSolicitud(id)
+                    .onSuccess {
+                        cargarDatos()
+                        _uiState.update { it.copy(mensaje = "Solicitud cancelada.") }
+                    }
+                    .onFailure { error ->
+                        _uiState.update { it.copy(mensaje = error.message ?: "No fue posible cancelar la solicitud.") }
+                    }
+            } catch (e: Exception) {
+                // HU-10: cualquier fallo inesperado (no solo los previstos con
+                // Result) se comunica de forma recuperable, sin cerrar la app.
+                _uiState.update { it.copy(mensaje = "Ocurrió un problema al cancelar la solicitud. Intenta de nuevo.") }
+            }
         }
     }
+
+    /** HU-07: transición genérica reutilizada por las 4 acciones de gestión. */
+    private fun gestionarSolicitud(
+        id: Int,
+        accion: (Int) -> Result<Unit>,
+        mensajeExito: String
+    ) {
+        viewModelScope.launch {
+            try {
+                accion(id)
+                    .onSuccess {
+                        cargarDatos()
+                        _uiState.update { it.copy(mensaje = mensajeExito) }
+                    }
+                    .onFailure { error ->
+                        _uiState.update { it.copy(mensaje = error.message ?: "No fue posible completar la acción.") }
+                    }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(mensaje = "Ocurrió un problema inesperado. Intenta de nuevo.") }
+            }
+        }
+    }
+
+    fun aprobarSolicitud(id: Int) =
+        gestionarSolicitud(id, repository::aprobarSolicitud, "Solicitud aprobada.")
+
+    fun rechazarSolicitud(id: Int) =
+        gestionarSolicitud(id, repository::rechazarSolicitud, "Solicitud rechazada.")
+
+    fun entregarSolicitud(id: Int) =
+        gestionarSolicitud(id, repository::entregarSolicitud, "Equipo marcado como entregado.")
+
+    fun devolverSolicitud(id: Int) =
+        gestionarSolicitud(id, repository::devolverSolicitud, "Devolución registrada.")
 
     fun limpiarMensaje() {
         _uiState.update { it.copy(mensaje = null) }
