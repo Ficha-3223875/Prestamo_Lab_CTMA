@@ -35,3 +35,7 @@
 |      |                                                                      |              |         |       |                                                      |
 | R-23 | Violación del patrón MVVM por llamadas directas desde Composables al Repositorio |        Media |    Alta | Alto  | Revisiones de código e inspección de dependencias en las vistas UI |
 | R-24 | Fallos de compilación o archivos no rastreados en el repositorio antes de la entrega|         Baja |    Alta | Alto  | Verificación de build limpio y comandos de estado en Git previa sustentación |
+|      |                                                                      |              |         |       |                                                      |
+| R-25 | Fallo en la apertura de la cámara por falta de permisos en tiempo real|        Media |    Alta | Alto  | Implementar solicitud de permisos antes de acceder al hardware (CameraX)|
+| R-26 | Corrupción de la base de datos SQLite por cambios en el esquema      |         Baja |    Alta | Alto  | Uso de migraciones destructivas para prototipos o migraciones Room   |
+| R-27 | Excepción por vibración en dispositivos que no cuentan con motor háptico|       Baja |   Baja | Bajo  | Verificación de existencia del servicio antes de llamar a `vibrate()`|
