@@ -1,5 +1,9 @@
 package com.example.prestamo_lab_ctma.ui.solicitud
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -7,8 +11,10 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.example.prestamo_lab_ctma.model.Equipo
 import com.example.prestamo_lab_ctma.ui.viewmodel.FormularioSolicitudState
 
@@ -21,9 +27,19 @@ fun SolicitarPrestamoScreen(
     onAmbienteChange: (String) -> Unit,
     onPropositoChange: (String) -> Unit,
     onDuracionChange: (String) -> Unit,
+    onCapturePhoto: () -> Unit,
     onGuardar: () -> Unit,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            onCapturePhoto()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -76,6 +92,21 @@ fun SolicitarPrestamoScreen(
                     supportingText = { formState.errorDuracion?.let { Text(it) } },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
+
+                Button(
+                    onClick = {
+                        val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                        if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+                            onCapturePhoto()
+                        } else {
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Text(if (formState.photoPath == null) "Tomar Foto del Equipo" else "Foto Capturada ✓")
+                }
                 
                 Spacer(modifier = Modifier.weight(1f))
                 

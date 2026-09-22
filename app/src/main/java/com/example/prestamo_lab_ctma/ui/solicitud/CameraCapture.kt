@@ -1,7 +1,5 @@
 package com.example.prestamo_lab_ctma.ui.solicitud
 
-import android.content.Context
-import android.net.Uri
 import android.util.Log
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -29,37 +27,41 @@ fun CameraCapture(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-    var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
+    
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
+    val previewView = remember { PreviewView(context) }
+    val imageCapture = remember { 
+        ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .build() 
+    }
+
+    LaunchedEffect(Unit) {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            val preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
+            val selector = CameraSelector.DEFAULT_BACK_CAMERA
+
+            try {
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    selector,
+                    preview,
+                    imageCapture
+                )
+            } catch (e: Exception) {
+                Log.e("CameraCapture", "Binding failed", e)
+            }
+        }, ContextCompat.getMainExecutor(context))
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
-            factory = { ctx -\u003e
-                val previewView = PreviewView(ctx)
-                val preview = Preview.Builder().build()
-                val selector = CameraSelector.DEFAULT_BACK_CAMERA
-                imageCapture = ImageCapture.Builder()
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                    .build()
-
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    try {
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            selector,
-                            preview,
-                            imageCapture
-                        )
-                        preview.setSurfaceProvider(previewView.surfaceProvider)
-                    } catch (e: Exception) {
-                        Log.e("CameraCapture", "Use case binding failed", e)
-                    }
-                }, ContextCompat.getMainExecutor(ctx))
-                previewView
-            },
+            factory = { previewView },
             modifier = Modifier.fillMaxSize()
         )
 
@@ -74,22 +76,23 @@ fun CameraCapture(
                 Text("Cancelar")
             }
             Button(onClick = {
-                val imgCapture = imageCapture ?: return@Button
                 val photoFile = File(
                     context.cacheDir,
                     SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(System.currentTimeMillis()) + ".jpg"
                 )
                 val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
-                imgCapture.takePicture(
+                imageCapture.takePicture(
                     outputOptions,
                     cameraExecutor,
                     object : ImageCapture.OnImageSavedCallback {
                         override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                            onImageCaptured(photoFile.absolutePath)
+                            ContextCompat.getMainExecutor(context).execute {
+                                onImageCaptured(photoFile.absolutePath)
+                            }
                         }
                         override fun onError(exception: ImageCaptureException) {
-                            Log.e("CameraCapture", "Photo capture failed: ${exception.message}", exception)
+                            Log.e("CameraCapture", "Capture failed", exception)
                         }
                     }
                 )

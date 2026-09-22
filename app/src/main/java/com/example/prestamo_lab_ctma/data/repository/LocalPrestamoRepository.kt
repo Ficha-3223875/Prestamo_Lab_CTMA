@@ -98,6 +98,6 @@ class LocalPrestamoRepository(
 
     // Mappers
     private fun EquipoEntity.toDomain() = Equipo(id, nombre, categoria, estado)
-    private fun SolicitudEntity.toDomain() = SolicitudPrestamo(id, equipoId, ambienteDestino, proposito, duracionHoras, estado)
-    private fun SolicitudPrestamo.toEntity() = SolicitudEntity(0, equipoId, ambienteDestino, proposito, duracionHoras, estado)
+    private fun SolicitudEntity.toDomain() = SolicitudPrestamo(id, equipoId, ambienteDestino, proposito, duracionHoras, estado, photoPath)
+    private fun SolicitudPrestamo.toEntity() = SolicitudEntity(0, equipoId, ambienteDestino, proposito, duracionHoras, estado, photoPath)
 }

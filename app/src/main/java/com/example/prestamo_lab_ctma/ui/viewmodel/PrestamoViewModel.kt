@@ -2,19 +2,18 @@ package com.example.prestamo_lab_ctma.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.prestamo_lab_ctma.data.repository.InMemoryPrestamoRepository
 import com.example.prestamo_lab_ctma.data.repository.PrestamoRepository
+import com.example.prestamo_lab_ctma.data.local.UserPreferencesRepository
 import com.example.prestamo_lab_ctma.model.Equipo
 import com.example.prestamo_lab_ctma.model.EstadoSolicitud
 import com.example.prestamo_lab_ctma.model.SolicitudPrestamo
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class PrestamoViewModel(
-    private val repository: PrestamoRepository = InMemoryPrestamoRepository()
+    private val repository: PrestamoRepository,
+    private val userPrefs: UserPreferencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PrestamoUiState())
@@ -24,22 +23,54 @@ class PrestamoViewModel(
     val formularioState: StateFlow<FormularioSolicitudState> = _formularioState.asStateFlow()
 
     init {
-        cargarDatos()
-    }
-
-    fun cargarDatos() {
-        _uiState.update {
-            it.copy(
-                equipos = repository.obtenerEquipos(),
-                solicitudes = repository.obtenerSolicitudes()
-            )
+        // Inicializar datos asincrónicamente
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                repository.inicializarEquipos()
+                observarDatos()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Fallo al cargar datos") }
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
-    fun obtenerEquipoPorId(id: Int): Equipo? = repository.obtenerEquipo(id)
+    private fun observarDatos() {
+        // Combinar datos del repositorio con las preferencias de DataStore
+        combine(
+            repository.obtenerEquipos(),
+            repository.obtenerSolicitudes(),
+            userPrefs.categoryFilter
+        ) { equipos, solicitudes, filter ->
+            val filteredEquipos = if (filter == null) equipos else equipos.filter { it.categoria.name == filter }
+            _uiState.update { 
+                it.copy(
+                    equipos = filteredEquipos, 
+                    solicitudes = solicitudes,
+                    filterCategory = filter
+                ) 
+            }
+        }.launchIn(viewModelScope)
+    }
 
-    fun obtenerSolicitudPorId(id: Int): SolicitudPrestamo? = repository.obtenerSolicitud(id)
+    fun updateFilter(category: String?) {
+        viewModelScope.launch {
+            userPrefs.saveCategoryFilter(category)
+        }
+    }
 
+    fun obtenerEquipoPorId(id: Int): Equipo? {
+        // Como tenemos los equipos en el uiState, podemos buscarlos ahí de forma síncrona para la UI
+        return _uiState.value.equipos.find { it.id == id }
+    }
+
+    fun obtenerSolicitudPorId(id: Int): SolicitudPrestamo? {
+        return _uiState.value.solicitudes.find { it.id == id }
+    }
+
+    // Lógica del Formulario
     fun onAmbienteChange(nuevoAmbiente: String) {
         _formularioState.update { it.copy(ambienteDestino = nuevoAmbiente) }
         validarFormulario()
@@ -53,6 +84,10 @@ class PrestamoViewModel(
     fun onDuracionChange(nuevaDuracion: String) {
         _formularioState.update { it.copy(duracionHoras = nuevaDuracion) }
         validarFormulario()
+    }
+
+    fun onPhotoCaptured(path: String) {
+        _formularioState.update { it.copy(photoPath = path) }
     }
 
     private fun validarFormulario() {
@@ -96,7 +131,8 @@ class PrestamoViewModel(
                 ambienteDestino = state.ambienteDestino,
                 proposito = state.proposito,
                 duracionHoras = state.duracionHoras.toInt(),
-                estado = EstadoSolicitud.SOLICITADA
+                estado = EstadoSolicitud.SOLICITADA,
+                photoPath = state.photoPath
             )
 
             val result = repository.crearSolicitud(solicitud)
@@ -110,7 +146,7 @@ class PrestamoViewModel(
             }
             if (result.isSuccess) {
                 limpiarFormulario()
-                cargarDatos()
+                // No hace falta cargarDatos() manualmente porque el Flow observa cambios
             }
         }
     }
@@ -122,9 +158,6 @@ class PrestamoViewModel(
                 it.copy(
                     mensaje = if (result.isSuccess) "Solicitud cancelada" else result.exceptionOrNull()?.message
                 )
-            }
-            if (result.isSuccess) {
-                cargarDatos()
             }
         }
     }

@@ -1,13 +1,17 @@
 package com.example.prestamo_lab_ctma.ui.catalogo
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.prestamo_lab_ctma.model.CategoriaEquipo
 import com.example.prestamo_lab_ctma.model.Equipo
 import com.example.prestamo_lab_ctma.model.EstadoEquipo
 
@@ -15,6 +19,10 @@ import com.example.prestamo_lab_ctma.model.EstadoEquipo
 @Composable
 fun CatalogoScreen(
     equipos: List<Equipo>,
+    isLoading: Boolean,
+    error: String?,
+    selectedCategory: String?,
+    onCategorySelected: (String?) -> Unit,
     onEquipoClick: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -23,16 +31,62 @@ fun CatalogoScreen(
             TopAppBar(title = { Text("Catálogo de Equipos") })
         }
     ) { padding ->
-        LazyColumn(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(equipos) { equipo ->
-                EquipoItem(equipo = equipo, onClick = { onEquipoClick(equipo.id) })
+        Column(modifier = modifier.padding(padding)) {
+            // Filtros de categoría (Semana 6)
+            CategoryFilterRow(
+                selectedCategory = selectedCategory,
+                onCategorySelected = onCategorySelected
+            )
+
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (error != null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = error, color = MaterialTheme.colorScheme.error)
+                }
+            } else if (equipos.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No hay equipos disponibles en esta categoría.")
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(equipos) { equipo ->
+                        EquipoItem(equipo = equipo, onClick = { onEquipoClick(equipo.id) })
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+fun CategoryFilterRow(
+    selectedCategory: String?,
+    onCategorySelected: (String?) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            FilterChip(
+                selected = selectedCategory == null,
+                onClick = { onCategorySelected(null) },
+                label = { Text("Todos") }
+            )
+        }
+        items(CategoriaEquipo.values()) { category ->
+            FilterChip(
+                selected = selectedCategory == category.name,
+                onClick = { onCategorySelected(category.name) },
+                label = { Text(category.name) }
+            )
         }
     }
 }

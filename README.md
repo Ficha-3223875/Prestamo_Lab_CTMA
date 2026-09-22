@@ -2,7 +2,7 @@
 
 **PréstamoLab CTMA** es un prototipo educativo diseñado para la gestión de préstamos de equipos y herramientas dentro de un ambiente de aprendizaje (SENA). Esta aplicación permite a los usuarios consultar un catálogo, realizar solicitudes de préstamo y gestionar sus solicitudes activas.
 
-## 🏗️ Arquitectura del Proyecto
+##  Arquitectura del Proyecto
 
 La aplicación sigue una arquitectura limpia con separación de responsabilidades, facilitando su mantenimiento y comprensión:
 
@@ -13,7 +13,7 @@ La aplicación sigue una arquitectura limpia con separación de responsabilidade
     *   **UiState**: Representa el estado actual de la pantalla de forma reactiva mediante `StateFlow`.
 *   **UI (`ui/`)**: Desarrollada íntegramente con **Jetpack Compose** y **Material 3**. Se encarga únicamente de mostrar los datos del `UiState` y enviar eventos al ViewModel.
 
-## 📋 Reglas de Negocio (RN) Implementadas
+##  Reglas de Negocio (RN) Implementadas
 
 1.  **RN-01**: Solo se permite solicitar equipos en estado **DISPONIBLE**.
 2.  **RN-02**: El campo **Ambiente o Destino** es obligatorio en el formulario.
@@ -24,7 +24,7 @@ La aplicación sigue una arquitectura limpia con separación de responsabilidade
 7.  **RN-07**: Solo las solicitudes en estado **SOLICITADA** pueden ser canceladas por el usuario.
 8.  **RN-08**: Manejo robusto de **IDs inexistentes** para evitar cierres inesperados (crash).
 
-## 🚀 Tecnologías Utilizadas
+##  Tecnologías Utilizadas
 
 *   **Lenguaje**: Kotlin
 *   **Interfaz de Usuario**: Jetpack Compose (Material 3)
@@ -32,7 +32,7 @@ La aplicación sigue una arquitectura limpia con separación de responsabilidade
 *   **Navegación**: Navigation Compose (paso de parámetros por ID)
 *   **Manejo de Estado**: StateFlow y LiveData (vía UI State)
 
-## 🧪 Escenarios de Prueba (MVP)
+##  Escenarios de Prueba (MVP)
 
 La aplicación está preparada para verificar:
 - Carga de datos sintéticos en el catálogo.

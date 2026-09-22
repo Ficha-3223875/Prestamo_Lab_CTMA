@@ -9,14 +9,14 @@ import kotlinx.coroutines.flow.map
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_preferences")
 
-class UserPreferencesRepository(private val context: Context) {
+open class UserPreferencesRepository(private val context: Context) {
     private val CATEGORY_FILTER = stringPreferencesKey("category_filter")
 
-    val categoryFilter: Flow<String?> = context.dataStore.data.map { preferences ->
+    open val categoryFilter: Flow<String?> = context.dataStore.data.map { preferences ->
         preferences[CATEGORY_FILTER]
     }
 
-    suspend fun saveCategoryFilter(category: String?) {
+    open suspend fun saveCategoryFilter(category: String?) {
         context.dataStore.edit { preferences ->
             if (category == null) {
                 preferences.remove(CATEGORY_FILTER)

@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -14,6 +15,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.ui.platform.LocalContext
+import com.example.prestamo_lab_ctma.data.local.AppDatabase
+import com.example.prestamo_lab_ctma.data.local.UserPreferencesRepository
+import com.example.prestamo_lab_ctma.data.repository.LocalPrestamoRepository
 import com.example.prestamo_lab_ctma.ui.catalogo.CatalogoScreen
 import com.example.prestamo_lab_ctma.ui.equipo.EquipoDetalleScreen
 import com.example.prestamo_lab_ctma.ui.misprestamos.MisSolicitudesScreen
@@ -34,16 +39,32 @@ sealed class Screen(val route: String) {
     object SolicitudDetalle : Screen("solicitud/{solicitudId}") {
         fun createRoute(id: Int) = "solicitud/$id"
     }
+    object Camera : Screen("camera")
 }
 
 @Composable
 fun AppNavigation() {
+    val context = LocalContext.current
+    val hardwareManager = remember { com.example.prestamo_lab_ctma.ui.util.HardwareManager(context) }
+    val database = AppDatabase.getDatabase(context)
+    val userPrefs = remember { UserPreferencesRepository(context) }
+    
     val viewModel: PrestamoViewModel = viewModel(
-        factory = PrestamoViewModelFactory(com.example.prestamo_lab_ctma.data.repository.InMemoryPrestamoRepository())
+        factory = PrestamoViewModelFactory(
+            LocalPrestamoRepository(database.equipoDao(), database.solicitudDao()),
+            userPrefs
+        )
     )
     val navController = rememberNavController()
-    val uiState by viewModel.uiState.collectAsState()
-    val formState by viewModel.formularioState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val formState by viewModel.formularioState.collectAsStateWithLifecycle()
+
+    // RN: Efecto de vibración al completar operaciones
+    LaunchedEffect(uiState.operacionExitosa) {
+        if (uiState.operacionExitosa) {
+            hardwareManager.vibrate()
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -84,6 +105,10 @@ fun AppNavigation() {
             composable(Screen.Catalogo.route) {
                 CatalogoScreen(
                     equipos = uiState.equipos,
+                    isLoading = uiState.isLoading,
+                    error = uiState.error,
+                    selectedCategory = uiState.filterCategory,
+                    onCategorySelected = viewModel::updateFilter,
                     onEquipoClick = { id -> 
                         navController.navigate(Screen.EquipoDetalle.createRoute(id)) 
                     }
@@ -126,7 +151,18 @@ fun AppNavigation() {
                     onAmbienteChange = viewModel::onAmbienteChange,
                     onPropositoChange = viewModel::onPropositoChange,
                     onDuracionChange = viewModel::onDuracionChange,
+                    onCapturePhoto = { navController.navigate(Screen.Camera.route) },
                     onGuardar = { viewModel.guardarSolicitud(id) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Screen.Camera.route) {
+                com.example.prestamo_lab_ctma.ui.solicitud.CameraCapture(
+                    onImageCaptured = { path ->
+                        viewModel.onPhotoCaptured(path)
+                        navController.popBackStack()
+                    },
                     onBack = { navController.popBackStack() }
                 )
             }
