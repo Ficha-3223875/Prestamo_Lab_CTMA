@@ -2,48 +2,61 @@ package com.ctma.prestamolab.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ctma.prestamolab.data.preferences.FiltrosPreferences
 import com.ctma.prestamolab.data.repository.PrestamoRepository
+import com.ctma.prestamolab.model.CategoriaEquipo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Coordina el estado y las acciones de pantalla (sección 10.2 de la guía).
- * No guarda Activity, Context ni NavController: solo expone UiState/StateFlow
- * de solo lectura y funciones que la UI puede invocar.
+ * Coordina el estado y las acciones de pantalla. Desde la Semana 6,
+ * el Repository es suspend (puede tardar, lee de Room), así que TODO
+ * acceso a datos pasa por viewModelScope.launch. La conversión a
+ * Flow/StateFlow reactivo de punta a punta llega en la Semana 7
+ * (sección 8 de la guía); por ahora se recarga explícitamente tras
+ * cada operación, que es el paso intermedio correcto según la
+ * progresión de la guía.
  */
 class PrestamoViewModel(
-    private val repository: PrestamoRepository
+    private val repository: PrestamoRepository,
+    private val preferencias: FiltrosPreferences
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PrestamoUiState())
     val uiState: StateFlow<PrestamoUiState> = _uiState.asStateFlow()
 
     init {
-        cargarDatos()
-    }
-
-    private fun cargarDatos() {
-        _uiState.update {
-            it.copy(
-                equipos = repository.obtenerEquipos(),
-                solicitudes = repository.obtenerSolicitudes()
-            )
+        viewModelScope.launch {
+            val filtroGuardado = preferencias.categoriaFiltro.first()
+            _uiState.update { it.copy(categoriaFiltro = filtroGuardado) }
+            cargarDatos()
+            _uiState.update { it.copy(cargandoInicial = false) }
         }
     }
 
-    fun obtenerEquipo(id: Int) = repository.obtenerEquipo(id)
+    private suspend fun cargarDatos() {
+        val equipos = repository.obtenerEquipos()
+        val solicitudes = repository.obtenerSolicitudes()
+        _uiState.update { it.copy(equipos = equipos, solicitudes = solicitudes) }
+    }
 
-    fun obtenerSolicitud(id: Int) = repository.obtenerSolicitud(id)
+    /** Búsqueda rápida en memoria sobre lo ya cargado (evita otra consulta a disco). */
+    fun obtenerEquipo(id: Int) = _uiState.value.equipos.find { it.id == id }
 
-    /**
-     * Crea una solicitud. El flag "guardando" es la primera barrera contra
-     * doble pulsación (RN-05/BUG-03): mientras es true, se ignoran nuevos
-     * intentos aunque el usuario pulse Guardar varias veces.
-     */
+    fun obtenerSolicitud(id: Int) = _uiState.value.solicitudes.find { it.id == id }
+
+    fun cambiarFiltroCategoria(categoria: CategoriaEquipo?) {
+        viewModelScope.launch {
+            preferencias.guardarCategoriaFiltro(categoria)
+            _uiState.update { it.copy(categoriaFiltro = categoria) }
+        }
+    }
+
     fun crearSolicitud(
         equipoId: Int,
         ambienteDestino: String,
@@ -55,49 +68,31 @@ class PrestamoViewModel(
 
         _uiState.update { it.copy(guardando = true, mensaje = null) }
         viewModelScope.launch {
-            // Pequeña espera para simular una operación real y hacer visible
-            // en pruebas manuales el efecto del bloqueo por doble pulsación.
-            delay(150)
-            val resultado = repository.crearSolicitud(
-                equipoId, ambienteDestino, proposito, duracionHoras
-            )
-            resultado.onSuccess {
-                cargarDatos()
-                _uiState.update { estado -> estado.copy(guardando = false, mensaje = "Solicitud registrada.") }
-                onExito()
-            }.onFailure { error ->
-                _uiState.update { estado ->
-                    estado.copy(guardando = false, mensaje = error.message ?: "No fue posible registrar la solicitud.")
-                }
-            }
-        }
-    }
-
-    fun cancelarSolicitud(id: Int) {
-        viewModelScope.launch {
             try {
-                repository.cancelarSolicitud(id)
-                    .onSuccess {
-                        cargarDatos()
-                        _uiState.update { it.copy(mensaje = "Solicitud cancelada.") }
+                delay(150)
+                val resultado = repository.crearSolicitud(equipoId, ambienteDestino, proposito, duracionHoras)
+                resultado.onSuccess {
+                    cargarDatos()
+                    _uiState.update { estado -> estado.copy(guardando = false, mensaje = "Solicitud registrada.") }
+                    onExito()
+                }.onFailure { error ->
+                    _uiState.update { estado ->
+                        estado.copy(guardando = false, mensaje = error.message ?: "No fue posible registrar la solicitud.")
                     }
-                    .onFailure { error ->
-                        _uiState.update { it.copy(mensaje = error.message ?: "No fue posible cancelar la solicitud.") }
-                    }
+                }
             } catch (e: Exception) {
-                // HU-10: cualquier fallo inesperado (no solo los previstos con
-                // Result) se comunica de forma recuperable, sin cerrar la app.
-                _uiState.update { it.copy(mensaje = "Ocurrió un problema al cancelar la solicitud. Intenta de nuevo.") }
+                _uiState.update { it.copy(guardando = false, mensaje = "Ocurrió un problema al guardar. Intenta de nuevo.") }
             }
         }
     }
 
-    /** HU-07: transición genérica reutilizada por las 4 acciones de gestión. */
-    private fun gestionarSolicitud(
-        id: Int,
-        accion: (Int) -> Result<Unit>,
-        mensajeExito: String
-    ) {
+    fun cancelarSolicitud(id: Int) = gestionar(id, repository::cancelarSolicitud, "Solicitud cancelada.")
+    fun aprobarSolicitud(id: Int) = gestionar(id, repository::aprobarSolicitud, "Solicitud aprobada.")
+    fun rechazarSolicitud(id: Int) = gestionar(id, repository::rechazarSolicitud, "Solicitud rechazada.")
+    fun entregarSolicitud(id: Int) = gestionar(id, repository::entregarSolicitud, "Equipo marcado como entregado.")
+    fun devolverSolicitud(id: Int) = gestionar(id, repository::devolverSolicitud, "Devolución registrada.")
+
+    private fun gestionar(id: Int, accion: suspend (Int) -> Result<Unit>, mensajeExito: String) {
         viewModelScope.launch {
             try {
                 accion(id)
@@ -113,18 +108,6 @@ class PrestamoViewModel(
             }
         }
     }
-
-    fun aprobarSolicitud(id: Int) =
-        gestionarSolicitud(id, repository::aprobarSolicitud, "Solicitud aprobada.")
-
-    fun rechazarSolicitud(id: Int) =
-        gestionarSolicitud(id, repository::rechazarSolicitud, "Solicitud rechazada.")
-
-    fun entregarSolicitud(id: Int) =
-        gestionarSolicitud(id, repository::entregarSolicitud, "Equipo marcado como entregado.")
-
-    fun devolverSolicitud(id: Int) =
-        gestionarSolicitud(id, repository::devolverSolicitud, "Devolución registrada.")
 
     fun limpiarMensaje() {
         _uiState.update { it.copy(mensaje = null) }

@@ -11,13 +11,9 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * HU-11: entorno de pruebas instrumentadas (Compose UI Test / Espresso),
- * complementario a las pruebas unitarias de ValidacionesTest. Corre sobre
- * un emulador o dispositivo real (./gradlew connectedDebugAndroidTest),
- * a diferencia de las unitarias que corren en la JVM.
- *
- * Cubre TC-01 (catálogo con datos) desde la capa de UI real, no solo la
- * lógica de negocio.
+ * Actualizado en Semana 6: CatalogoScreen ahora recibe categoriaFiltro
+ * (obligatorio) y cargandoInicial (opcional). Se pasa categoriaFiltro
+ * = null para simular "sin filtro aplicado", el caso TC-01 original.
  */
 class CatalogoScreenTest {
 
@@ -34,6 +30,8 @@ class CatalogoScreenTest {
         composeTestRule.setContent {
             CatalogoScreen(
                 equipos = equiposDePrueba,
+                categoriaFiltro = null,
+                cargandoInicial = false,
                 onEquipoClick = {},
                 onVerMisSolicitudes = {}
             )

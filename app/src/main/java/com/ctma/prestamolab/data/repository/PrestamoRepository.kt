@@ -4,28 +4,28 @@ import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.SolicitudPrestamo
 
 /**
- * Contrato del dominio (sección 10.3 de la guía). El Repository define QUÉ
- * operaciones existen; no decide mensajes ni nada visual: esa
- * responsabilidad es del ViewModel/UI.
+ * Contrato del dominio (sección 10.3 de la primera guía, ampliado en
+ * Semana 6). A partir de esta semana todas las operaciones son
+ * suspend: ya no hay garantía de que los datos vivan en memoria, así
+ * que el Repository puede tardar (acceso a disco vía Room). La UI y
+ * el ViewModel siguen sin saber CÓMO se guardan los datos, solo que
+ * hay que esperarlos.
  */
 interface PrestamoRepository {
-    fun obtenerEquipos(): List<Equipo>
-    fun obtenerEquipo(id: Int): Equipo?
-    fun obtenerSolicitudes(): List<SolicitudPrestamo>
-    fun obtenerSolicitud(id: Int): SolicitudPrestamo?
-    fun crearSolicitud(
+    suspend fun obtenerEquipos(): List<Equipo>
+    suspend fun obtenerEquipo(id: Int): Equipo?
+    suspend fun obtenerSolicitudes(): List<SolicitudPrestamo>
+    suspend fun obtenerSolicitud(id: Int): SolicitudPrestamo?
+    suspend fun crearSolicitud(
         equipoId: Int,
         ambienteDestino: String,
         proposito: String,
         duracionHoras: Int
     ): Result<SolicitudPrestamo>
-    fun cancelarSolicitud(id: Int): Result<Unit>
+    suspend fun cancelarSolicitud(id: Int): Result<Unit>
 
-    // HU-07: gestión completa del ciclo de vida de una solicitud, no solo
-    // consulta. RN-10/RN-11/RN-12 controlan qué transición es válida desde
-    // qué estado.
-    fun aprobarSolicitud(id: Int): Result<Unit>
-    fun rechazarSolicitud(id: Int): Result<Unit>
-    fun entregarSolicitud(id: Int): Result<Unit>
-    fun devolverSolicitud(id: Int): Result<Unit>
+    suspend fun aprobarSolicitud(id: Int): Result<Unit>
+    suspend fun rechazarSolicitud(id: Int): Result<Unit>
+    suspend fun entregarSolicitud(id: Int): Result<Unit>
+    suspend fun devolverSolicitud(id: Int): Result<Unit>
 }

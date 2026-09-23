@@ -16,10 +16,6 @@ import com.ctma.prestamolab.ui.misprestamos.SolicitudDetalleScreen
 import com.ctma.prestamolab.ui.solicitud.SolicitarScreen
 import com.ctma.prestamolab.viewmodel.PrestamoViewModel
 
-/**
- * Rutas de la app (sección 7.2 de la guía). Se transportan identificadores
- * (equipoId / solicitudId), nunca los objetos completos.
- */
 object PrestamoDestinos {
     const val CATALOGO = "catalogo"
     const val EQUIPO_DETALLE = "equipoDetalle/{equipoId}"
@@ -43,7 +39,10 @@ fun PrestamoNavGraph(
 
         composable(PrestamoDestinos.CATALOGO) {
             CatalogoScreen(
-                equipos = uiState.equipos,
+                equipos = uiState.equiposFiltrados,
+                categoriaFiltro = uiState.categoriaFiltro,
+                cargandoInicial = uiState.cargandoInicial,
+                onCambiarFiltro = { categoria -> viewModel.cambiarFiltroCategoria(categoria) },
                 onEquipoClick = { id -> navController.navigate(PrestamoDestinos.equipoDetalle(id)) },
                 onVerMisSolicitudes = { navController.navigate(PrestamoDestinos.MIS_SOLICITUDES) }
             )
@@ -54,8 +53,6 @@ fun PrestamoNavGraph(
             arguments = listOf(navArgument("equipoId") { type = NavType.IntType })
         ) { backStackEntry ->
             val equipoId = backStackEntry.arguments?.getInt("equipoId") ?: -1
-            // RN-08: un equipoId inexistente entrega null y la pantalla lo
-            // muestra como estado recuperable en lugar de fallar.
             val equipo = viewModel.obtenerEquipo(equipoId)
             EquipoDetalleScreen(
                 equipo = equipo,
