@@ -7,13 +7,13 @@ import com.ctma.prestamolab.model.CategoriaEquipo
 import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.EstadoEquipo
 import com.ctma.prestamolab.ui.catalogo.CatalogoScreen
+import com.ctma.prestamolab.viewmodel.CargaEstado
 import org.junit.Rule
 import org.junit.Test
 
 /**
- * Actualizado en Semana 6: CatalogoScreen ahora recibe categoriaFiltro
- * (obligatorio) y cargandoInicial (opcional). Se pasa categoriaFiltro
- * = null para simular "sin filtro aplicado", el caso TC-01 original.
+ * Actualizado en Semana 7: CatalogoScreen ahora recibe estadoCatalogo
+ * (CargaEstado) en vez de un booleano cargandoInicial suelto.
  */
 class CatalogoScreenTest {
 
@@ -31,7 +31,7 @@ class CatalogoScreenTest {
             CatalogoScreen(
                 equipos = equiposDePrueba,
                 categoriaFiltro = null,
-                cargandoInicial = false,
+                estadoCatalogo = CargaEstado.Contenido,
                 onEquipoClick = {},
                 onVerMisSolicitudes = {}
             )
@@ -41,5 +41,33 @@ class CatalogoScreenTest {
         composeTestRule.onNodeWithText("Estado: Disponible").assertIsDisplayed()
         composeTestRule.onNodeWithText("Kit de destornilladores").assertIsDisplayed()
         composeTestRule.onNodeWithText("Estado: Prestado").assertIsDisplayed()
+    }
+
+    @Test
+    fun estadoCargandoMuestraIndicadorDeProgreso() {
+        composeTestRule.setContent {
+            CatalogoScreen(
+                equipos = emptyList(),
+                categoriaFiltro = null,
+                estadoCatalogo = CargaEstado.Cargando,
+                onEquipoClick = {},
+                onVerMisSolicitudes = {}
+            )
+        }
+        composeTestRule.onNodeWithText("Cargando catálogo...").assertIsDisplayed()
+    }
+
+    @Test
+    fun estadoErrorMuestraMensaje() {
+        composeTestRule.setContent {
+            CatalogoScreen(
+                equipos = emptyList(),
+                categoriaFiltro = null,
+                estadoCatalogo = CargaEstado.Error("fallo simulado"),
+                onEquipoClick = {},
+                onVerMisSolicitudes = {}
+            )
+        }
+        composeTestRule.onNodeWithText("No fue posible cargar el catálogo: fallo simulado").assertIsDisplayed()
     }
 }

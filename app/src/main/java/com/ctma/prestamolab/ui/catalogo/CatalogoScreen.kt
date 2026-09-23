@@ -30,19 +30,20 @@ import androidx.compose.ui.unit.dp
 import com.ctma.prestamolab.model.CategoriaEquipo
 import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.EstadoEquipo
+import com.ctma.prestamolab.viewmodel.CargaEstado
 
 /**
- * PB-01 / TC-01: catálogo de equipos. Desde la Semana 6 incluye:
- *  - Filtro por categoría (chips), persistido en DataStore.
- *  - Indicador de carga mientras Room responde la primera vez
- *    (cargandoInicial), en vez de mostrar una lista vacía engañosa.
+ * PB-01 / TC-01: catálogo de equipos. Desde Semana 7, la pantalla
+ * pinta un único estado a la vez (CargaEstado), en vez de encadenar
+ * varias condiciones sueltas: es más fácil verificar que Cargando,
+ * Vacío y Error no puedan mostrarse "a medias" al mismo tiempo.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CatalogoScreen(
     equipos: List<Equipo>,
     categoriaFiltro: CategoriaEquipo?,
-    cargandoInicial: Boolean = false,
+    estadoCatalogo: CargaEstado,
     onCambiarFiltro: (CategoriaEquipo?) -> Unit = {},
     onEquipoClick: (Int) -> Unit,
     onVerMisSolicitudes: () -> Unit
@@ -53,10 +54,7 @@ fun CatalogoScreen(
                 title = { Text("PréstamoLab CTMA") },
                 actions = {
                     IconButton(onClick = onVerMisSolicitudes) {
-                        Icon(
-                            imageVector = Icons.Filled.List,
-                            contentDescription = "Ver mis solicitudes"
-                        )
+                        Icon(imageVector = Icons.Filled.List, contentDescription = "Ver mis solicitudes")
                     }
                 }
             )
@@ -68,13 +66,10 @@ fun CatalogoScreen(
                 modifier = Modifier.padding(16.dp)
             )
 
-            FiltroCategorias(
-                seleccionada = categoriaFiltro,
-                onSeleccionar = onCambiarFiltro
-            )
+            FiltroCategorias(seleccionada = categoriaFiltro, onSeleccionar = onCambiarFiltro)
 
-            when {
-                cargandoInicial -> {
+            when (estadoCatalogo) {
+                is CargaEstado.Cargando -> {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -83,13 +78,19 @@ fun CatalogoScreen(
                         Text(text = "Cargando catálogo...", modifier = Modifier.padding(top = 12.dp))
                     }
                 }
-                equipos.isEmpty() -> {
+                is CargaEstado.Error -> {
+                    Text(
+                        text = "No fue posible cargar el catálogo: ${estadoCatalogo.mensaje}",
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+                is CargaEstado.Vacio -> {
                     Text(
                         text = "No hay equipos para esta categoría.",
                         modifier = Modifier.padding(16.dp)
                     )
                 }
-                else -> {
+                is CargaEstado.Contenido -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),

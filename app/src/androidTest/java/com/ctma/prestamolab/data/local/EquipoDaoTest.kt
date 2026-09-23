@@ -12,6 +12,7 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlinx.coroutines.flow.first
 
 /**
  * Pruebas de persistencia real (Semana 6, actividad 15: "Ejecutar
@@ -79,7 +80,7 @@ class EquipoDaoTest {
 
     @Test
     fun catalogoVacioAlIniciar() = runTest {
-        val equipos = dao.obtenerTodos()
+        val equipos = dao.observarTodos().first()
         assertEquals(0, equipos.size)
     }
 

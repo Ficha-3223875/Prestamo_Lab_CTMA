@@ -2,20 +2,23 @@ package com.ctma.prestamolab.data.repository
 
 import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.SolicitudPrestamo
+import kotlinx.coroutines.flow.Flow
 
 /**
- * Contrato del dominio (sección 10.3 de la primera guía, ampliado en
- * Semana 6). A partir de esta semana todas las operaciones son
- * suspend: ya no hay garantía de que los datos vivan en memoria, así
- * que el Repository puede tardar (acceso a disco vía Room). La UI y
- * el ViewModel siguen sin saber CÓMO se guardan los datos, solo que
- * hay que esperarlos.
+ * Contrato del dominio, actualizado en Semana 7 a flujo reactivo
+ * (sección 8, Semana 7). Las lecturas de colecciones ahora son Flow:
+ * el ViewModel las "observa" en vez de pedirlas y volver a pedirlas
+ * después de cada acción. obtenerEquipo/obtenerSolicitud (por ID)
+ * siguen siendo suspend porque son consultas puntuales, no algo que
+ * tenga sentido observar indefinidamente.
  */
 interface PrestamoRepository {
-    suspend fun obtenerEquipos(): List<Equipo>
+    fun observarEquipos(): Flow<List<Equipo>>
+    fun observarSolicitudes(): Flow<List<SolicitudPrestamo>>
+
     suspend fun obtenerEquipo(id: Int): Equipo?
-    suspend fun obtenerSolicitudes(): List<SolicitudPrestamo>
     suspend fun obtenerSolicitud(id: Int): SolicitudPrestamo?
+
     suspend fun crearSolicitud(
         equipoId: Int,
         ambienteDestino: String,

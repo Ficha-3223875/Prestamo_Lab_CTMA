@@ -1,8 +1,8 @@
 package com.ctma.prestamolab.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -33,7 +33,12 @@ fun PrestamoNavGraph(
     viewModel: PrestamoViewModel,
     navController: NavHostController = rememberNavController()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    // collectAsStateWithLifecycle (en vez de collectAsState) pausa la
+    // recolección cuando la pantalla no está visible (por ejemplo, la
+    // app en segundo plano) y la reanuda al volver — evita procesar
+    // actualizaciones de estado que nadie va a ver (sección 8,
+    // Semana 7: "consciente del ciclo de vida").
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     NavHost(navController = navController, startDestination = PrestamoDestinos.CATALOGO) {
 
@@ -41,7 +46,7 @@ fun PrestamoNavGraph(
             CatalogoScreen(
                 equipos = uiState.equiposFiltrados,
                 categoriaFiltro = uiState.categoriaFiltro,
-                cargandoInicial = uiState.cargandoInicial,
+                estadoCatalogo = uiState.estadoCatalogo,
                 onCambiarFiltro = { categoria -> viewModel.cambiarFiltroCategoria(categoria) },
                 onEquipoClick = { id -> navController.navigate(PrestamoDestinos.equipoDetalle(id)) },
                 onVerMisSolicitudes = { navController.navigate(PrestamoDestinos.MIS_SOLICITUDES) }

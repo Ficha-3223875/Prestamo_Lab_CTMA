@@ -13,7 +13,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "0.3.0"
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,9 +33,6 @@ android {
         compose = true
     }
 
-    // Room genera un archivo de esquema por versión de base de datos
-    // (sección 6, Semana 6: "Migraciones y pruebas de persistencia").
-    // Se guarda en el repositorio para poder validar migraciones futuras.
     ksp {
         arg("room.schemaLocation", "$projectDir/schemas")
     }
@@ -44,6 +41,7 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
 
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
@@ -54,7 +52,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // Semana 6: persistencia local
+    // Persistencia local (Semana 6)
     implementation("androidx.room:room-runtime:2.7.2")
     implementation("androidx.room:room-ktx:2.7.2")
     ksp("androidx.room:room-compiler:2.7.2")
@@ -62,6 +60,8 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    // Semana 7: pruebas de Flow (cancelación, estados reactivos)
+    testImplementation("app.cash.turbine:turbine:1.1.0")
 
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

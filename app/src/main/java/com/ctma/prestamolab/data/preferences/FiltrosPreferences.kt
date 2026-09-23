@@ -9,28 +9,30 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 /**
- * DataStore de preferencias del usuario (Semana 6, actividad 12:
- * "Configurar DataStore para filtros/preferencias del usuario").
- * Guarda qué categoría de equipo prefiere ver el usuario en el
- * catálogo, para que la próxima vez que abra la app recuerde su
- * último filtro. No es información sensible ni crítica: DataStore es
- * la herramienta correcta para esto (Room sería excesivo para una
- * sola preferencia simple).
+ * Contrato de las preferencias del usuario. Separado de la
+ * implementación real (Semana 7) para poder sustituirlo por una
+ * versión de prueba en JVM pura, sin depender de un Context de
+ * Android real — necesario para probar PrestamoViewModel con
+ * kotlinx-coroutines-test (ver PrestamoViewModelTest.kt).
  */
+interface PreferenciasFiltro {
+    val categoriaFiltro: Flow<CategoriaEquipo?>
+    suspend fun guardarCategoriaFiltro(categoria: CategoriaEquipo?)
+}
+
 private val Context.dataStore by preferencesDataStore(name = "prestamolab_preferencias")
 
-class FiltrosPreferences(private val context: Context) {
+class FiltrosPreferences(private val context: Context) : PreferenciasFiltro {
 
     private val CATEGORIA_FILTRO_KEY = stringPreferencesKey("categoria_filtro")
 
-    /** null = sin filtro, mostrar todas las categorías. */
-    val categoriaFiltro: Flow<CategoriaEquipo?> = context.dataStore.data.map { prefs ->
+    override val categoriaFiltro: Flow<CategoriaEquipo?> = context.dataStore.data.map { prefs ->
         prefs[CATEGORIA_FILTRO_KEY]?.let { valor ->
             runCatching { CategoriaEquipo.valueOf(valor) }.getOrNull()
         }
     }
 
-    suspend fun guardarCategoriaFiltro(categoria: CategoriaEquipo?) {
+    override suspend fun guardarCategoriaFiltro(categoria: CategoriaEquipo?) {
         context.dataStore.edit { prefs ->
             if (categoria == null) {
                 prefs.remove(CATEGORIA_FILTRO_KEY)

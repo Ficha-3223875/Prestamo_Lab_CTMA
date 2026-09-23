@@ -2,29 +2,38 @@ package com.ctma.prestamolab.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ctma.prestamolab.data.preferences.FiltrosPreferences
+import com.ctma.prestamolab.data.preferences.PreferenciasFiltro
 import com.ctma.prestamolab.data.repository.PrestamoRepository
 import com.ctma.prestamolab.model.CategoriaEquipo
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Coordina el estado y las acciones de pantalla. Desde la Semana 6,
- * el Repository es suspend (puede tardar, lee de Room), así que TODO
- * acceso a datos pasa por viewModelScope.launch. La conversión a
- * Flow/StateFlow reactivo de punta a punta llega en la Semana 7
- * (sección 8 de la guía); por ahora se recarga explícitamente tras
- * cada operación, que es el paso intermedio correcto según la
- * progresión de la guía.
+ * Semana 7: el ViewModel deja de "pedir datos y volver a pedirlos".
+ * En su lugar, observa los Flow del Repository con collect/combine
+ * una sola vez (en init) y deja que las actualizaciones lleguen
+ * solas cuando algo cambia en la base de datos. Ya no hay ningún
+ * cargarDatos() después de crear/aprobar/cancelar: eso era necesario
+ * hasta la Semana 6 porque las lecturas eran "de una sola vez"
+ * (suspend); con Flow, Room avisa solo.
+ *
+ * catch{} en el combine maneja errores inesperados del flujo (por
+ * ejemplo, si Room fallara al leer) sin tumbar la app: se refleja en
+ * errorCarga, un estado más de CargaEstado.
  */
 class PrestamoViewModel(
     private val repository: PrestamoRepository,
-    private val preferencias: FiltrosPreferences
+    private val preferencias: PreferenciasFiltro
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PrestamoUiState())
@@ -34,20 +43,33 @@ class PrestamoViewModel(
         viewModelScope.launch {
             val filtroGuardado = preferencias.categoriaFiltro.first()
             _uiState.update { it.copy(categoriaFiltro = filtroGuardado) }
-            cargarDatos()
-            _uiState.update { it.copy(cargandoInicial = false) }
         }
+
+        // combine reacciona cada vez que CUALQUIERA de los dos flujos
+        // emite un nuevo valor (equipos o solicitudes cambiaron).
+        combine(
+            repository.observarEquipos(),
+            repository.observarSolicitudes()
+        ) { equipos, solicitudes -> equipos to solicitudes }
+            .catch { error ->
+                _uiState.update {
+                    it.copy(cargandoInicial = false, errorCarga = error.message ?: "No fue posible cargar los datos.")
+                }
+            }
+            .onEach { (equipos, solicitudes) ->
+                _uiState.update {
+                    it.copy(
+                        equipos = equipos,
+                        solicitudes = solicitudes,
+                        cargandoInicial = false,
+                        errorCarga = null
+                    )
+                }
+            }
+            .launchIn(viewModelScope)
     }
 
-    private suspend fun cargarDatos() {
-        val equipos = repository.obtenerEquipos()
-        val solicitudes = repository.obtenerSolicitudes()
-        _uiState.update { it.copy(equipos = equipos, solicitudes = solicitudes) }
-    }
-
-    /** Búsqueda rápida en memoria sobre lo ya cargado (evita otra consulta a disco). */
     fun obtenerEquipo(id: Int) = _uiState.value.equipos.find { it.id == id }
-
     fun obtenerSolicitud(id: Int) = _uiState.value.solicitudes.find { it.id == id }
 
     fun cambiarFiltroCategoria(categoria: CategoriaEquipo?) {
@@ -57,6 +79,14 @@ class PrestamoViewModel(
         }
     }
 
+    /**
+     * guardando protege contra doble pulsación (RN-05) y, desde esta
+     * semana, también demuestra manejo explícito de cancelación
+     * (actividad 20): si la corrutina se cancela mientras "guarda"
+     * (por ejemplo, el usuario cierra la app antes de que termine),
+     * el catch distingue CancellationException —que NO debe tratarse
+     * como un error de negocio— del resto de excepciones reales.
+     */
     fun crearSolicitud(
         equipoId: Int,
         ambienteDestino: String,
@@ -69,10 +99,9 @@ class PrestamoViewModel(
         _uiState.update { it.copy(guardando = true, mensaje = null) }
         viewModelScope.launch {
             try {
-                delay(150)
+                delay(150) // simula una operación con latencia real
                 val resultado = repository.crearSolicitud(equipoId, ambienteDestino, proposito, duracionHoras)
                 resultado.onSuccess {
-                    cargarDatos()
                     _uiState.update { estado -> estado.copy(guardando = false, mensaje = "Solicitud registrada.") }
                     onExito()
                 }.onFailure { error ->
@@ -80,6 +109,12 @@ class PrestamoViewModel(
                         estado.copy(guardando = false, mensaje = error.message ?: "No fue posible registrar la solicitud.")
                     }
                 }
+            } catch (e: CancellationException) {
+                // La corrutina fue cancelada (pantalla cerrada, ViewModel
+                // destruido): no es un error para mostrarle al usuario,
+                // solo se re-lanza para que la cancelación se propague
+                // correctamente, como exige kotlinx.coroutines.
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(guardando = false, mensaje = "Ocurrió un problema al guardar. Intenta de nuevo.") }
             }
@@ -96,13 +131,12 @@ class PrestamoViewModel(
         viewModelScope.launch {
             try {
                 accion(id)
-                    .onSuccess {
-                        cargarDatos()
-                        _uiState.update { it.copy(mensaje = mensajeExito) }
-                    }
+                    .onSuccess { _uiState.update { it.copy(mensaje = mensajeExito) } }
                     .onFailure { error ->
                         _uiState.update { it.copy(mensaje = error.message ?: "No fue posible completar la acción.") }
                     }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(mensaje = "Ocurrió un problema inesperado. Intenta de nuevo.") }
             }
