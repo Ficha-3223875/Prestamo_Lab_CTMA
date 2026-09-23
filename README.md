@@ -4,6 +4,15 @@ Prototipo educativo Android para consultar un catálogo simulado de equipos y he
 
 No reemplaza ningún sistema institucional real, no maneja inventario oficial y todos los datos del catálogo son sintéticos: no debe usarse con información personal real.
 
+## Documentación ampliada
+
+La matriz de riesgos, el plan de pruebas completo, la matriz de trazabilidad y el refinamiento/estimación de la Semana 7 viven en la carpeta `docs/` (se movieron ahí en la Semana 5 para seguir la ubicación recomendada de la guía, sección 9):
+
+- [`docs/RIESGOS.md`](docs/RIESGOS.md)
+- [`docs/PLAN_PRUEBAS.md`](docs/PLAN_PRUEBAS.md)
+- [`docs/MATRIZ_TRAZABILIDAD.md`](docs/MATRIZ_TRAZABILIDAD.md)
+- [`docs/SPRINT_SEMANA7.md`](docs/SPRINT_SEMANA7.md)
+
 ## Contenido
 
 1. [Descubrimiento y Product Goal](#1-descubrimiento-y-product-goal)
@@ -22,6 +31,7 @@ No reemplaza ningún sistema institucional real, no maneja inventario oficial y 
 14. [Limitaciones conocidas](#14-limitaciones-conocidas)
 15. [Gestión completa del ciclo de vida (HU-07) y accesibilidad (HU-10)](#15-gestión-completa-del-ciclo-de-vida-hu-07-y-accesibilidad-hu-10)
 16. [Uso responsable de inteligencia artificial](#16-uso-responsable-de-inteligencia-artificial)
+17. [Semanas 5 a 7: persistencia, Scrum formal y arquitectura reactiva](#17-semanas-5-a-7-persistencia-scrum-formal-y-arquitectura-reactiva)
 
 ---
 
@@ -55,6 +65,8 @@ Este Product Goal describe el resultado que buscamos para el usuario, no la tecn
 | HU-08 | Como solicitante, quiero que un ID inexistente no cierre la app, para no perder mi sesión de trabajo. | Dado un equipoId o solicitudId que no existe, cuando la app intenta abrir ese detalle, entonces muestra un mensaje recuperable en vez de cerrarse. |
 
 ## 3. Matriz de riesgos y priorización de pruebas
+
+> Versión ampliada y actualizada en [`docs/RIESGOS.md`](docs/RIESGOS.md) (Semana 5). Se conserva aquí el contenido original de referencia.
 
 El riesgo es lo que ayuda a decidir qué probar primero. La matriz está ordenada por nivel (probabilidad × impacto) y conectada con una estrategia de cobertura concreta.
 
@@ -98,32 +110,40 @@ El riesgo es lo que ayuda a decidir qué probar primero. La matriz está ordenad
 - Las correcciones relevantes tienen confirmación y regresión.
 - Git y README están actualizados.
 - El incremento puede demostrarse y explicarse por cualquier integrante.
+- **(Semana 6)** Los datos persisten en Room tras cerrar y reabrir la app.
+- **(Semana 6/7)** Existen pruebas reproducibles de persistencia (Room/DAO) y de comportamiento asíncrono (Flow, cancelación de corrutinas).
 
 ## 5. Diseño: modelo de dominio y arquitectura
 
-Se modelaron dos entidades principales, `Equipo` y `SolicitudPrestamo`, y dos enumeraciones de estado. El modelo se mantuvo simple a propósito: para este incremento solo se implementaron completamente los estados que se usan en el flujo (SOLICITADA y CANCELADA); APROBADA, ENTREGADA y DEVUELTA quedan modeladas para un siguiente Sprint.
+Se modelaron dos entidades principales, `Equipo` y `SolicitudPrestamo`, y dos enumeraciones de estado. El modelo se mantuvo simple a propósito: para el primer incremento solo se implementaron completamente los estados que se usan en el flujo básico (SOLICITADA y CANCELADA); a partir de la Semana 5, APROBADA, ENTREGADA y DEVUELTA también quedaron completamente implementadas (ver sección 15).
 
 | Elemento | Campos / valores |
 |----------|-------------------|
 | `Equipo` | id, nombre, categoria (`CategoriaEquipo`), estado (`DISPONIBLE` / `RESERVADO` / `PRESTADO`) |
 | `SolicitudPrestamo` | id, equipoId, ambienteDestino, proposito, duracionHoras, estado (`SOLICITADA` / `APROBADA` / `ENTREGADA` / `DEVUELTA` / `CANCELADA` / `RECHAZADA`) |
 
-**Arquitectura y flujo unidireccional (UDF)**
+**Arquitectura y flujo unidireccional (UDF) — actualizada en Semanas 6 y 7**
 
 ```
-UI (Compose) --eventos--> ViewModel --> Repository --> InMemory data
-UI (Compose) <--UiState-- ViewModel
+UI (Compose) --eventos--> ViewModel --> Repository
+UI (Compose) <--UiState (StateFlow)-- ViewModel
+Repository --Flow--> Room (SQLite local, fuente de verdad)
+Repository --Flow--> DataStore (preferencia de filtro de categoría)
 ```
+
+Desde la Semana 6, Room reemplazó al Repository en memoria como fuente real de datos (`InMemoryPrestamoRepository` se conserva solo para pruebas unitarias, que no necesitan Android/SQLite real). Desde la Semana 7, las lecturas son reactivas: el Repository expone `Flow` en vez de listas de una sola vez, y el ViewModel las observa con `combine()` en lugar de recargarlas manualmente después de cada acción. DataStore persiste el filtro de categoría del catálogo entre sesiones.
 
 | Capa | Responsabilidad | No hace |
 |------|------------------|---------|
-| UI Compose | Renderizar UiState y emitir eventos/callbacks. | Modificar listas internas del Repository. |
-| ViewModel | Coordinar estado, validación y acciones de pantalla. | Guardar Activity, Context o NavController. |
+| UI Compose | Renderizar UiState y emitir eventos/callbacks. | Acceder directamente a Room o DataStore. |
+| ViewModel | Observar los Flow del Repository y coordinar acciones de pantalla. | Guardar Activity, Context o NavController. |
 | Repository | Definir operaciones del dominio y ser la fuente de verdad. | Decidir mensajes o comportamiento visual. |
-| InMemoryRepository | Simular catálogo y solicitudes compartidas durante la ejecución. | Prometer persistencia real. |
+| Room (`AppDatabase`, DAOs) | Persistencia local real (Semana 6): catálogo y solicitudes sobreviven a cerrar la app. | Conocer nada de la UI ni del ViewModel. |
+| DataStore (`FiltrosPreferences`) | Persistir la preferencia de filtro de categoría (Semana 6). | Guardar datos del dominio (eso es responsabilidad de Room). |
+| `InMemoryPrestamoRepository` | Línea base heredada, usada solo en pruebas unitarias JVM. | Ser la fuente de datos real de la app (ese rol lo tiene Room). |
 | Navigation | Conectar destinos y pasar IDs (equipoId, solicitudId). | Pasar entidades completas. |
 
-Esta separación es la que permite probar las reglas de negocio (propósito, duración, disponibilidad) con pruebas unitarias, sin depender de la interfaz.
+Esta separación es la que permite probar las reglas de negocio (propósito, duración, disponibilidad, transiciones de estado) con pruebas unitarias, y la persistencia con pruebas instrumentadas, sin mezclar ambas responsabilidades.
 
 **Navegación implementada**
 
@@ -138,33 +158,39 @@ Un identificador inexistente no cierra la app: la pantalla de destino recibe `nu
 
 | ID | Regla | Dónde se aplica |
 |----|-------|------------------|
-| RN-01 | Solo un equipo DISPONIBLE puede solicitarse | `Validaciones.kt`, `InMemoryPrestamoRepository` |
+| RN-01 | Solo un equipo DISPONIBLE puede solicitarse | `Validaciones.kt`, `RoomPrestamoRepository` |
 | RN-02 | Ambiente/destino obligatorio | `Validaciones.kt` |
 | RN-03 | Propósito entre 10 y 180 caracteres | `Validaciones.kt` |
 | RN-04 | Duración entre 1 y 8 horas | `Validaciones.kt` |
-| RN-05 | Una acción de Guardado crea una sola solicitud | flag `guardando` en `PrestamoViewModel` + `synchronized` en el Repository |
-| RN-06 | Una solicitud activa reserva el equipo | `InMemoryPrestamoRepository.crearSolicitud` |
-| RN-07 | Solo SOLICITADA puede cancelarse en el MVP | `Validaciones.kt`, `InMemoryPrestamoRepository.cancelarSolicitud` |
+| RN-05 | Una acción de Guardado crea una sola solicitud | flag `guardando` en `PrestamoViewModel` + transacción en el Repository |
+| RN-06 | Una solicitud activa reserva el equipo | `RoomPrestamoRepository.crearSolicitud` |
+| RN-07 | Solo SOLICITADA puede cancelarse | `Validaciones.kt`, `RoomPrestamoRepository.cancelarSolicitud` |
 | RN-08 | ID inexistente produce estado recuperable | `PrestamoNavGraph` + pantallas de detalle |
-| RN-09 | Datos sintéticos | catálogo semilla en `InMemoryPrestamoRepository` |
-| RN-10 | Solo SOLICITADA puede aprobarse o rechazarse | `Validaciones.kt`, `InMemoryPrestamoRepository.aprobarSolicitud` / `rechazarSolicitud` |
-| RN-11 | Solo APROBADA puede marcarse ENTREGADA (equipo pasa a PRESTADO) | `Validaciones.kt`, `InMemoryPrestamoRepository.entregarSolicitud` |
-| RN-12 | Solo ENTREGADA puede marcarse DEVUELTA (equipo vuelve a DISPONIBLE) | `Validaciones.kt`, `InMemoryPrestamoRepository.devolverSolicitud` |
+| RN-09 | Datos sintéticos | catálogo semilla en `RoomPrestamoRepository.sembrarCatalogoSiEstaVacio` |
+| RN-10 | Solo SOLICITADA puede aprobarse o rechazarse | `Validaciones.kt`, `RoomPrestamoRepository.aprobarSolicitud` / `rechazarSolicitud` |
+| RN-11 | Solo APROBADA puede marcarse ENTREGADA (equipo pasa a PRESTADO) | `Validaciones.kt`, `RoomPrestamoRepository.entregarSolicitud` |
+| RN-12 | Solo ENTREGADA puede marcarse DEVUELTA (equipo vuelve a DISPONIBLE) | `Validaciones.kt`, `RoomPrestamoRepository.devolverSolicitud` |
 
 ## 6. Desarrollo del incremento Android
 
-El incremento se construyó en Kotlin + Jetpack Compose, con Material 3, ViewModel, StateFlow y Navigation Compose:
+El incremento se construyó en Kotlin + Jetpack Compose, con Material 3, ViewModel, StateFlow/Flow y Navigation Compose:
 
 - `model/`: `Equipo`, `SolicitudPrestamo`, `Estados` y `Validaciones` (reglas de negocio desacopladas de la UI).
-- `data/repository/`: contrato `PrestamoRepository` y su implementación `InMemoryPrestamoRepository`.
-- `viewmodel/`: `PrestamoViewModel` + `PrestamoUiState` + fábrica de ViewModel.
-- `ui/`: pantallas de Catálogo, Detalle de equipo, Solicitar, Mis solicitudes y Detalle de solicitud.
-- `navigation/`: `PrestamoNavGraph` con las rutas por ID.
-- Pruebas unitarias JUnit sobre las reglas de negocio (`app/src/test`).
+- `model/mapper/`: traducción entre el modelo de dominio y las entidades de Room (Semana 6).
+- `data/local/`: `AppDatabase`, DAOs (`EquipoDao`, `SolicitudDao`) y entidades Room — persistencia local real (Semana 6).
+- `data/preferences/`: `FiltrosPreferences` (DataStore) y su interfaz `PreferenciasFiltro`, para poder sustituirla en pruebas (Semana 7).
+- `data/repository/`: contrato `PrestamoRepository` (Semana 7: expone `Flow` para lecturas), `RoomPrestamoRepository` (fuente real) e `InMemoryPrestamoRepository` (línea base heredada, usada en pruebas unitarias).
+- `viewmodel/`: `PrestamoViewModel` + `PrestamoUiState` (con `CargaEstado`: Cargando/Contenido/Vacío/Error, Semana 7) + fábrica de ViewModel.
+- `ui/`: pantallas de Catálogo (con filtro por categoría), Detalle de equipo, Solicitar, Mis solicitudes y Detalle de solicitud.
+- `navigation/`: `PrestamoNavGraph` con las rutas por ID, usando `collectAsStateWithLifecycle` (Semana 7).
+- Pruebas unitarias JUnit (`app/src/test`) sobre reglas de negocio y sobre el ViewModel (cancelación de corrutinas, con Turbine).
+- Pruebas instrumentadas (`app/src/androidTest`) sobre persistencia real (Room) y sobre las pantallas Compose.
 
 La regla de doble pulsación (RN-05) se protege en dos capas: el ViewModel ignora una segunda solicitud mientras `guardando` es verdadero, y el Repository sincroniza la creación de la solicitud para que dos hilos no puedan reservar el mismo equipo al mismo tiempo. Esta decisión fue justamente la causa del defecto BUG-03 descrito en la sección 8.
 
 ## 7. Plan y diseño de pruebas
+
+> Versión ampliada y actualizada en [`docs/PLAN_PRUEBAS.md`](docs/PLAN_PRUEBAS.md) (Semana 5), que incluye los casos TC-19 a TC-21 sobre las transiciones de gestión. Se conserva aquí el contenido original de referencia.
 
 **7.1 Contenido del plan**
 
@@ -180,7 +206,7 @@ La regla de doble pulsación (RN-05) se protege en dos capas: el ViewModel ignor
 | Criterios de salida | Sin defectos altos abiertos sin decisión; casos críticos en PASS. |
 | Convención | PASS / FAIL / BLOCKED. |
 
-**7.2 Suite de casos (18 casos, al menos 3 técnicas de caja negra)**
+**7.2 Suite de casos (18 casos originales; ver docs/PLAN_PRUEBAS.md para los 21 actuales)**
 
 | ID | Escenario | Resultado esperado | Técnica |
 |----|-----------|---------------------|---------|
@@ -204,6 +230,8 @@ La regla de doble pulsación (RN-05) se protege en dos capas: el ViewModel ignor
 | TC-18 | Fuente 1.5× y texto largo | Contenido y acciones esenciales siguen usables. | Accesibilidad |
 
 **7.3 Trazabilidad**
+
+> Versión ampliada en [`docs/MATRIZ_TRAZABILIDAD.md`](docs/MATRIZ_TRAZABILIDAD.md) (Semana 5), con columna de PR.
 
 | Historia | Criterio | Riesgo | Caso | Ejecución | Defecto |
 |----------|----------|--------|------|-----------|---------|
@@ -244,11 +272,11 @@ La regla de doble pulsación (RN-05) se protege en dos capas: el ViewModel ignor
 
 BUG-03 se corrigió en dos capas: el ViewModel deja de aceptar una nueva solicitud mientras `guardando` es verdadero, y el Repository sincroniza la creación de la solicitud para evitar una condición de carrera. Se repitió TC-13 exactamente para confirmar que la falla puntual desapareció, y luego se ejecutó una regresión: guardar una solicitud una sola vez, crear otra sobre un equipo distinto, volver al catálogo, abrir el detalle y cancelar una solicitud. Los cinco resultados fueron PASS.
 
-**Defecto adicional encontrado en pruebas manuales post-entrega**: el ícono de acceso rápido a "Mis solicitudes" en la barra superior del catálogo no tenía ninguna acción conectada (`Icon` sin `onClick`). Se corrigió envolviéndolo en un `IconButton(onClick = onVerMisSolicitudes)`. Ver commit `fix: conectar botón Ver mis solicitudes y remover ícono de app inexistente`.
+**Defecto adicional encontrado en pruebas manuales post-entrega**: el ícono de acceso rápido a "Mis solicitudes" en la barra superior del catálogo no tenía ninguna acción conectada (`Icon` sin `onClick`). Se corrigió envolviéndolo en un `IconButton(onClick = onVerMisSolicitudes)`. Ver commit `fix: conectar botón Ver mis solicitudes y remover ícono de app inexistente`. Registrado formalmente como Issue BUG-04 en GitHub (Semana 5).
 
 ## 9. Sprint Review y Retrospective
 
-**Sprint Review**: se demostró el flujo completo — catálogo con disponibilidad real, solicitud válida sobre un equipo DISPONIBLE, rechazo de una solicitud sobre un equipo no disponible, consulta de Mis solicitudes, cancelación de una solicitud SOLICITADA y los resultados de la suite de pruebas, incluyendo BUG-03 ya corregido. El Sprint Goal se alcanzó: se puede consultar un equipo disponible y registrar una solicitud válida, con disponibilidad coherente y evidencia real de calidad. Quedó pendiente para el Product Backlog habilitar las transiciones APROBADA/ENTREGADA/DEVUELTA en un futuro incremento.
+**Sprint Review**: se demostró el flujo completo — catálogo con disponibilidad real, solicitud válida sobre un equipo DISPONIBLE, rechazo de una solicitud sobre un equipo no disponible, consulta de Mis solicitudes, cancelación de una solicitud SOLICITADA y los resultados de la suite de pruebas, incluyendo BUG-03 ya corregido. El Sprint Goal se alcanzó: se puede consultar un equipo disponible y registrar una solicitud válida, con disponibilidad coherente y evidencia real de calidad. Quedó pendiente para el Product Backlog habilitar las transiciones APROBADA/ENTREGADA/DEVUELTA — se resolvió en un incremento posterior (ver sección 15).
 
 **Sprint Retrospective**
 
@@ -277,29 +305,30 @@ Se usa un repositorio privado de GitHub Free: cubre issues, Pull Requests, revis
 
 ## 11. Producto final y paquete de evidencias
 
-- Repositorio Git: `prestamolab-ctma-android` (código Android completo, `.github/workflows` y este README).
-- Aplicación Android ejecutable con el alcance mínimo descrito en esta guía.
+- Repositorio Git: `prestamolab-ctma-android` (código Android completo, `.github/workflows`, `docs/` y este README).
+- Aplicación Android ejecutable, con persistencia real (Room) y arquitectura reactiva (Flow).
 - Este README, con propósito, instalación, arquitectura, navegación, reglas de negocio, pruebas y limitaciones.
 - Product Goal, Product Backlog, Sprint Goal, Sprint Backlog y Definition of Done (secciones 1 y 4).
-- Matriz de riesgos y matriz de trazabilidad (secciones 3 y 7.3).
-- Suite de 18 casos y datos sintéticos (sección 7.2).
+- Matriz de riesgos y matriz de trazabilidad (`docs/RIESGOS.md`, `docs/MATRIZ_TRAZABILIDAD.md`).
+- Suite de pruebas ampliada y datos sintéticos (`docs/PLAN_PRUEBAS.md`).
 - Bitácora con PASS/FAIL/BLOCKED y evidencia (sección 8.1).
-- Registro del defecto real encontrado, BUG-03 (sección 8.2).
-- Confirmación y regresión tras la corrección (sección 8.3).
-- Sprint Review y acción de Retrospective (sección 9).
+- Registro de los defectos reales encontrados, BUG-03 y BUG-04, como Issues de GitHub cerrados con evidencia.
+- Confirmación y regresión tras las correcciones (sección 8.3).
+- Sprint Review y acción de Retrospective (sección 9); refinamiento y estimación individual de Semana 7 (`docs/SPRINT_SEMANA7.md`).
 - Informe ejecutivo de calidad (sección 12).
+- Incrementos etiquetados: `v0.1.0` (línea base) → `v0.2.0` (Semana 5) → `v0.3.0` (Semana 6, Room) → `v0.4.0` (Semana 7, Flow reactivo).
 
 ## 12. Informe ejecutivo de calidad
 
 | Sección | Respuesta |
 |---------|-----------|
-| Alcance | Se construyó y probó el catálogo, el detalle de equipo, el registro y cancelación de solicitudes y la navegación por ID. Quedaron fuera las transiciones APROBADA/ENTREGADA/DEVUELTA. |
-| Ejecución | 18 casos planificados, 18 ejecutados: 17 PASS y 1 FAIL inicial (TC-13), resuelto y confirmado; 1 caso quedó BLOCKED en su primer intento por falta de dato de prueba y se re-ejecutó como PASS. |
-| Defectos | BUG-03 (doble pulsación duplicaba solicitudes) fue el defecto alto encontrado en pruebas planificadas; ya está corregido, confirmado y con regresión ejecutada. Se encontró y corrigió además un defecto menor en pruebas manuales post-entrega (ícono "Mis solicitudes" sin acción). |
-| Riesgo residual | Las transiciones APROBADA/ENTREGADA/DEVUELTA no tienen UI ni pruebas todavía; si se habilitan en un próximo Sprint, necesitan su propia suite. |
-| Limitaciones | Repository en memoria (sin persistencia real), sin autenticación de usuarios, ambiente de emulador únicamente. |
-| Definition of Done | 9 de 10 criterios cumplidos en este incremento; el pendiente es ampliar la cobertura de pruebas instrumentadas de UI. |
-| Recomendación | **ACEPTABLE**. El Sprint Goal se cumplió con evidencia real y el único defecto alto encontrado quedó corregido y confirmado. |
+| Alcance | Se construyó y probó el catálogo, el detalle de equipo, el registro y gestión completa de solicitudes (incluyendo aprobar/rechazar/entregar/devolver) y la navegación por ID, con persistencia real (Room) y arquitectura reactiva (Flow). |
+| Ejecución | 18 casos originales + 3 casos de transición (TC-19 a TC-21) + 5 pruebas de persistencia + 2 pruebas de cancelación de corrutinas + 3 pruebas de UI = 31 verificaciones automatizadas o manuales documentadas. |
+| Defectos | BUG-03 (doble pulsación) y BUG-04 (ícono sin conectar) fueron los defectos reales encontrados; ambos corregidos, confirmados y registrados como Issues cerrados en GitHub. |
+| Riesgo residual | No hay autenticación real de usuarios ni control de roles (cualquiera puede aprobar/entregar/devolver). No se hicieron pruebas formales con TalkBack. |
+| Limitaciones | Ver sección 14 (actualizada: la persistencia ya no es una limitación desde la Semana 6). |
+| Definition of Done | 11 de 11 criterios cumplidos a la fecha de la Semana 7 (ver sección 4). |
+| Recomendación | **ACEPTABLE**. El Sprint Goal original se cumplió y el incremento evolucionó con persistencia real y arquitectura reactiva, manteniendo evidencia de calidad verificable en cada paso. |
 
 ## 13. Instalación y ejecución
 
@@ -307,19 +336,23 @@ Se usa un repositorio privado de GitHub Free: cubre issues, Pull Requests, revis
 2. Dejar que Gradle sincronice las dependencias (requiere conexión a internet la primera vez).
 3. Ejecutar la configuración `app` sobre un emulador o dispositivo con Android 7.0 (API 24) o superior.
 
+> **Nota sobre la versión de Java (JDK):** este proyecto usa Gradle 9.1 / AGP 9.0.1, que requieren JDK 17 o superior. Si Android Studio muestra el mensaje *"Please Select Gradle JVM to Import Project"*, selecciona una versión de JDK entre 17 y 21 (Android Studio trae una empaquetada, no hace falta instalar nada aparte).
+
 También puede compilarse por línea de comandos:
 
 ```bash
 ./gradlew assembleDebug
 ./gradlew testDebugUnitTest
+./gradlew connectedDebugAndroidTest
 ./gradlew lintDebug
 ```
 
 ## 14. Limitaciones conocidas
 
-- No hay persistencia real: los datos se pierden al cerrar la app (Repository en memoria, punto 11 del alcance mínimo).
 - No hay autenticación real de usuarios ni control de roles: cualquier persona que use la app puede aprobar, rechazar, entregar o devolver una solicitud (no está diferenciado un rol "gestor" de un rol "solicitante" en la UI).
-- Las pruebas instrumentadas (`app/src/androidTest`) cubren un escenario representativo del catálogo (TC-01); no son todavía la suite completa de 18 casos en formato instrumentado, esos siguen documentados como ejecución manual en la sección 8.
+- Las pruebas instrumentadas de UI (`app/src/androidTest`) cubren escenarios representativos (catálogo, persistencia con Room); no son todavía una suite instrumentada 1:1 con los 21 casos manuales documentados en `docs/PLAN_PRUEBAS.md`.
+- No se hicieron pruebas formales con TalkBack activado (ver sección 15, "pendiente honesto").
+- No hay sincronización remota (API/servidor): todo el dato vive en el dispositivo (Room local). Esto se aborda en un incremento posterior (Semana 8 de la guía).
 
 ## 15. Gestión completa del ciclo de vida (HU-07) y accesibilidad (HU-10)
 
@@ -340,10 +373,35 @@ Las reglas RN-10 a RN-12 (`Validaciones.kt`) controlan qué transición es váli
 - La tipografía usa `sp` (no `dp`), por lo que respeta el escalado de fuente del sistema operativo.
 - La disponibilidad de un equipo nunca se comunica solo con color: siempre va acompañada de texto ("Disponible", "Reservado", "Prestado").
 - Un `equipoId` o `solicitudId` inexistente no cierra la app (RN-08): la pantalla de destino muestra un mensaje recuperable.
-- Las acciones de gestión (aprobar, rechazar, entregar, devolver, cancelar, crear) están envueltas en `try/catch` en el ViewModel, además del manejo con `Result` del Repository: un fallo inesperado no previsto también se comunica como mensaje recuperable en vez de cerrar la app.
+- Las acciones de gestión (aprobar, rechazar, entregar, devolver, cancelar, crear) están envueltas en `try/catch` en el ViewModel, distinguiendo explícitamente `CancellationException` (que se re-lanza, no se trata como error) de fallos reales (Semana 7).
 
-**Pendiente honesto**: no se hicieron pruebas formales con TalkBack activado, y no todos los botones tienen `contentDescription` explícito más allá del texto visible que ya traen por defecto (Material 3 usa el texto del `Button` como etiqueta accesible automáticamente, así que technically ya son anunciables, pero no se verificó manualmente con el lector de pantalla).
+**Pendiente honesto**: no se hicieron pruebas formales con TalkBack activado, y no todos los botones tienen `contentDescription` explícito más allá del texto visible que ya traen por defecto (Material 3 usa el texto del `Button` como etiqueta accesible automáticamente, así que técnicamente ya son anunciables, pero no se verificó manualmente con el lector de pantalla).
 
 ## 16. Uso responsable de inteligencia artificial
 
-Se utilizó IA como apoyo para redactar y revisar código base y documentación del proyecto, siguiendo la guía "Uso responsable de inteligencia artificial" del curso. Toda sugerencia fue comprendida, adaptada y verificada por el equipo antes de incorporarse; ningún resultado de prueba fue inventado.
+Se utilizó IA como apoyo para redactar y revisar código base y documentación del proyecto, siguiendo la guía "Uso responsable de inteligencia artificial" del curso. Toda sugerencia fue comprendida, adaptada y verificada antes de incorporarse; ningún resultado de prueba fue inventado. La estimación de Semana 7 se documenta honestamente como un ejercicio individual retrospectivo (ver `docs/SPRINT_SEMANA7.md`), no como una sesión de equipo simulada.
+
+## 17. Semanas 5 a 7: persistencia, Scrum formal y arquitectura reactiva
+
+Resumen de la evolución del incremento heredado, siguiendo la guía integradora de Semanas 5 a 9. No se creó un segundo proyecto ni se recrearon las HU/matrices desde cero: se auditó, refinó y amplió lo que ya existía.
+
+**Semana 5 — Auditoría y corte de calidad (`v0.2.0`)**
+- Arquitectura heredada auditada: cumplía ya la separación Compose/ViewModel/Repository/Navigation exigida.
+- Documentación reorganizada en `docs/` (riesgos, plan de pruebas, trazabilidad).
+- Defectos reales (BUG-03, BUG-04) registrados formalmente como Issues de GitHub, comentados y cerrados con evidencia.
+- Incorporados al GitHub Project individual del integrante.
+
+**Semana 6 — Persistencia local y Scrum formal (`v0.3.0`)**
+- Room como fuente local canónica: `AppDatabase`, `EquipoDao`, `SolicitudDao`, con relación por llave foránea entre solicitud y equipo.
+- DataStore para la preferencia de filtro de categoría.
+- `InMemoryPrestamoRepository` conservado para pruebas unitarias (no se descarta la línea base).
+- 5 pruebas instrumentadas nuevas sobre CRUD y persistencia real.
+
+**Semana 7 — Arquitectura reactiva y refinamiento (`v0.4.0`)**
+- Las consultas de Room pasaron de `suspend` a `Flow`: el ViewModel ya no recarga manualmente después de cada acción, observa y reacciona solo.
+- `UiState` formalizado con `CargaEstado` (Cargando/Contenido/Vacío/Error).
+- `collectAsStateWithLifecycle` en la UI, consciente del ciclo de vida.
+- Manejo explícito de cancelación de corrutinas (`CancellationException` re-lanzada, no tratada como error), con pruebas dedicadas usando Turbine.
+- Refinamiento INVEST del backlog y estimación individual retrospectiva, documentados honestamente en `docs/SPRINT_SEMANA7.md` — incluye análisis real de cuello de botella (el entorno de desarrollo, no el código de negocio, fue el mayor consumo de tiempo).
+
+**Pendiente para Semana 8 (siguiente incremento)**: integración con API REST vía Retrofit, MockWebServer y TDD acotado.
