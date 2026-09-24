@@ -4,6 +4,9 @@ import com.ctma.prestamolab.data.local.converter.aTexto
 import com.ctma.prestamolab.data.local.dao.EquipoDao
 import com.ctma.prestamolab.data.local.dao.SolicitudDao
 import com.ctma.prestamolab.data.local.entity.EquipoEntity
+import com.ctma.prestamolab.data.remote.EquipoRemoteDataSource
+import com.ctma.prestamolab.data.remote.ResultadoRed
+import com.ctma.prestamolab.data.remote.dto.aEntidad
 import com.ctma.prestamolab.model.CategoriaEquipo
 import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.EstadoEquipo
@@ -21,16 +24,16 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
 /**
- * Implementación real con Room. Desde la Semana 7, observarEquipos()
- * y observarSolicitudes() son Flow: cualquier INSERT/UPDATE que haga
- * cualquier método de esta clase dispara automáticamente una nueva
- * emisión, sin necesidad de "avisar" manualmente. Esto es lo que
- * permite eliminar por completo el patrón "hacer la acción, luego
- * recargar" que tenía el ViewModel hasta la Semana 6.
+ * Implementación real con Room + Retrofit (Semana 6 y 8). Room sigue
+ * siendo la fuente de verdad visible (observarEquipos/observarSolicitudes
+ * son Flow sobre la base de datos local); sincronizarCatalogoRemoto()
+ * es la única operación que toca la red, y solo actualiza Room si tiene
+ * éxito — la UI nunca observa el Repository remoto directamente.
  */
 class RoomPrestamoRepository(
     private val equipoDao: EquipoDao,
-    private val solicitudDao: SolicitudDao
+    private val solicitudDao: SolicitudDao,
+    private val equipoRemoteDataSource: EquipoRemoteDataSource
 ) : PrestamoRepository {
 
     suspend fun sembrarCatalogoSiEstaVacio() {
@@ -47,10 +50,6 @@ class RoomPrestamoRepository(
         }
     }
 
-    // onStart{} corre la siembra ANTES de la primera emisión del
-    // Flow, sin bloquear la app ni requerir una llamada aparte desde
-    // MainActivity (mismo problema de orden que resolvimos en
-    // Semana 6, pero ahora expresado con el operador correcto).
     override fun observarEquipos(): Flow<List<Equipo>> =
         equipoDao.observarTodos()
             .map { entidades -> entidades.map { it.aDominio() } }
@@ -108,6 +107,30 @@ class RoomPrestamoRepository(
 
     override suspend fun devolverSolicitud(id: Int): Result<Unit> =
         transicionar(id, ::puedeDevolverse, EstadoSolicitud.DEVUELTA, EstadoEquipo.DISPONIBLE, "Solo una solicitud ENTREGADA puede marcarse como devuelta.")
+
+    /**
+     * Semana 8: intenta sincronizar el catálogo con el servidor remoto.
+     * Como PréstamoLab no tiene backend real desplegado (ver
+     * docs/CONTRATO_API.md), esto va a fallar con SinConexion en la
+     * práctica — y eso es exactamente lo que se espera: demuestra que
+     * el patrón local-first protege la app incluso cuando la red no
+     * está disponible, sin bloquear ni dañar los datos que ya existen.
+     */
+    override suspend fun sincronizarCatalogoRemoto(): Result<Unit> {
+        return when (val resultado = equipoRemoteDataSource.obtenerEquipos()) {
+            is ResultadoRed.Exito -> {
+                val entidades = resultado.datos.map { it.aEntidad() }
+                equipoDao.insertarTodos(entidades)
+                Result.success(Unit)
+            }
+            is ResultadoRed.ErrorHttp -> Result.failure(
+                IllegalStateException("El servidor respondió ${resultado.codigo}: ${resultado.mensaje}")
+            )
+            is ResultadoRed.SinConexion -> Result.failure(
+                IllegalStateException("Sin conexión con el servidor. Mostrando datos locales.")
+            )
+        }
+    }
 
     private suspend fun transicionar(
         id: Int,

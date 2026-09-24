@@ -7,9 +7,9 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "MAPU" ]
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "MAPU" ]
 
 jobs:
   build-test-lint:

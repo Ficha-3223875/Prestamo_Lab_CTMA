@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -21,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,10 +35,11 @@ import com.ctma.prestamolab.model.EstadoEquipo
 import com.ctma.prestamolab.viewmodel.CargaEstado
 
 /**
- * PB-01 / TC-01: catálogo de equipos. Desde Semana 7, la pantalla
- * pinta un único estado a la vez (CargaEstado), en vez de encadenar
- * varias condiciones sueltas: es más fácil verificar que Cargando,
- * Vacío y Error no puedan mostrarse "a medias" al mismo tiempo.
+ * PB-01 / TC-01: catálogo de equipos. Desde Semana 8 incluye un botón
+ * de sincronización manual (ícono de refrescar) — deliberadamente
+ * manual, no automático, para que la persona controle cuándo se
+ * intenta contactar al servidor (que, al no existir uno real
+ * desplegado, siempre va a fallar de forma segura y visible).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,6 +47,9 @@ fun CatalogoScreen(
     equipos: List<Equipo>,
     categoriaFiltro: CategoriaEquipo?,
     estadoCatalogo: CargaEstado,
+    mensaje: String? = null,
+    sincronizando: Boolean = false,
+    onSincronizar: () -> Unit = {},
     onCambiarFiltro: (CategoriaEquipo?) -> Unit = {},
     onEquipoClick: (Int) -> Unit,
     onVerMisSolicitudes: () -> Unit
@@ -53,6 +59,13 @@ fun CatalogoScreen(
             TopAppBar(
                 title = { Text("PréstamoLab CTMA") },
                 actions = {
+                    IconButton(onClick = onSincronizar, enabled = !sincronizando) {
+                        if (sincronizando) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        } else {
+                            Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Sincronizar catálogo con el servidor")
+                        }
+                    }
                     IconButton(onClick = onVerMisSolicitudes) {
                         Icon(imageVector = Icons.Filled.List, contentDescription = "Ver mis solicitudes")
                     }
@@ -65,6 +78,13 @@ fun CatalogoScreen(
                 text = "Toca un equipo para ver su detalle o solicitarlo.",
                 modifier = Modifier.padding(16.dp)
             )
+
+            if (mensaje != null) {
+                Text(
+                    text = mensaje,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
 
             FiltroCategorias(seleccionada = categoriaFiltro, onSeleccionar = onCambiarFiltro)
 
@@ -85,10 +105,7 @@ fun CatalogoScreen(
                     )
                 }
                 is CargaEstado.Vacio -> {
-                    Text(
-                        text = "No hay equipos para esta categoría.",
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Text(text = "No hay equipos para esta categoría.", modifier = Modifier.padding(16.dp))
                 }
                 is CargaEstado.Contenido -> {
                     LazyColumn(
@@ -116,11 +133,7 @@ private fun FiltroCategorias(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            FilterChip(
-                selected = seleccionada == null,
-                onClick = { onSeleccionar(null) },
-                label = { Text("Todas") }
-            )
+            FilterChip(selected = seleccionada == null, onClick = { onSeleccionar(null) }, label = { Text("Todas") })
         }
         items(CategoriaEquipo.entries.toList()) { categoria ->
             FilterChip(
@@ -138,9 +151,7 @@ private fun EquipoCard(equipo: Equipo, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics {
-                contentDescription = "${equipo.nombre}, categoría ${equipo.categoria.name}, estado $estadoTexto"
-            },
+            .semantics { contentDescription = "${equipo.nombre}, categoría ${equipo.categoria.name}, estado $estadoTexto" },
         colors = CardDefaults.cardColors(),
         onClick = onClick
     ) {
