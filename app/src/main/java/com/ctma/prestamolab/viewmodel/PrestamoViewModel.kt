@@ -18,19 +18,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/**
- * Semana 7: el ViewModel deja de "pedir datos y volver a pedirlos".
- * En su lugar, observa los Flow del Repository con collect/combine
- * una sola vez (en init) y deja que las actualizaciones lleguen
- * solas cuando algo cambia en la base de datos. Ya no hay ningún
- * cargarDatos() después de crear/aprobar/cancelar: eso era necesario
- * hasta la Semana 6 porque las lecturas eran "de una sola vez"
- * (suspend); con Flow, Room avisa solo.
- *
- * catch{} en el combine maneja errores inesperados del flujo (por
- * ejemplo, si Room fallara al leer) sin tumbar la app: se refleja en
- * errorCarga, un estado más de CargaEstado.
- */
 class PrestamoViewModel(
     private val repository: PrestamoRepository,
     private val preferencias: PreferenciasFiltro
@@ -45,8 +32,6 @@ class PrestamoViewModel(
             _uiState.update { it.copy(categoriaFiltro = filtroGuardado) }
         }
 
-        // combine reacciona cada vez que CUALQUIERA de los dos flujos
-        // emite un nuevo valor (equipos o solicitudes cambiaron).
         combine(
             repository.observarEquipos(),
             repository.observarSolicitudes()
@@ -58,12 +43,7 @@ class PrestamoViewModel(
             }
             .onEach { (equipos, solicitudes) ->
                 _uiState.update {
-                    it.copy(
-                        equipos = equipos,
-                        solicitudes = solicitudes,
-                        cargandoInicial = false,
-                        errorCarga = null
-                    )
+                    it.copy(equipos = equipos, solicitudes = solicitudes, cargandoInicial = false, errorCarga = null)
                 }
             }
             .launchIn(viewModelScope)
@@ -80,13 +60,39 @@ class PrestamoViewModel(
     }
 
     /**
-     * guardando protege contra doble pulsación (RN-05) y, desde esta
-     * semana, también demuestra manejo explícito de cancelación
-     * (actividad 20): si la corrutina se cancela mientras "guarda"
-     * (por ejemplo, el usuario cierra la app antes de que termine),
-     * el catch distingue CancellationException —que NO debe tratarse
-     * como un error de negocio— del resto de excepciones reales.
+     * Semana 8: sincronización manual (botón, no automática) contra el
+     * servidor remoto. Room sigue mostrando datos de inmediato sin
+     * esperar esto — si falla (lo más probable, dado que no hay
+     * backend real), simplemente se informa y la app sigue funcionando
+     * igual con lo que ya tenía en Room.
      */
+    fun sincronizarConServidor() {
+        if (_uiState.value.sincronizando) return
+        _uiState.update { it.copy(sincronizando = true, mensaje = null) }
+        viewModelScope.launch {
+            try {
+                repository.sincronizarCatalogoRemoto()
+                    .onSuccess {
+                        _uiState.update { it.copy(sincronizando = false, mensaje = "Catálogo sincronizado con el servidor.") }
+                    }
+                    .onFailure { error ->
+                        _uiState.update {
+                            it.copy(
+                                sincronizando = false,
+                                mensaje = (error.message ?: "No fue posible sincronizar.") + " Se sigue mostrando el catálogo local."
+                            )
+                        }
+                    }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(sincronizando = false, mensaje = "No fue posible sincronizar. Se sigue mostrando el catálogo local.")
+                }
+            }
+        }
+    }
+
     fun crearSolicitud(
         equipoId: Int,
         ambienteDestino: String,
@@ -95,11 +101,10 @@ class PrestamoViewModel(
         onExito: () -> Unit
     ) {
         if (_uiState.value.guardando) return
-
         _uiState.update { it.copy(guardando = true, mensaje = null) }
         viewModelScope.launch {
             try {
-                delay(150) // simula una operación con latencia real
+                delay(150)
                 val resultado = repository.crearSolicitud(equipoId, ambienteDestino, proposito, duracionHoras)
                 resultado.onSuccess {
                     _uiState.update { estado -> estado.copy(guardando = false, mensaje = "Solicitud registrada.") }
@@ -110,10 +115,6 @@ class PrestamoViewModel(
                     }
                 }
             } catch (e: CancellationException) {
-                // La corrutina fue cancelada (pantalla cerrada, ViewModel
-                // destruido): no es un error para mostrarle al usuario,
-                // solo se re-lanza para que la cancelación se propague
-                // correctamente, como exige kotlinx.coroutines.
                 throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(guardando = false, mensaje = "Ocurrió un problema al guardar. Intenta de nuevo.") }
@@ -132,9 +133,7 @@ class PrestamoViewModel(
             try {
                 accion(id)
                     .onSuccess { _uiState.update { it.copy(mensaje = mensajeExito) } }
-                    .onFailure { error ->
-                        _uiState.update { it.copy(mensaje = error.message ?: "No fue posible completar la acción.") }
-                    }
+                    .onFailure { error -> _uiState.update { it.copy(mensaje = error.message ?: "No fue posible completar la acción.") } }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

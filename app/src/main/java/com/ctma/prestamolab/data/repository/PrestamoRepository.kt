@@ -4,14 +4,6 @@ import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.SolicitudPrestamo
 import kotlinx.coroutines.flow.Flow
 
-/**
- * Contrato del dominio, actualizado en Semana 7 a flujo reactivo
- * (sección 8, Semana 7). Las lecturas de colecciones ahora son Flow:
- * el ViewModel las "observa" en vez de pedirlas y volver a pedirlas
- * después de cada acción. obtenerEquipo/obtenerSolicitud (por ID)
- * siguen siendo suspend porque son consultas puntuales, no algo que
- * tenga sentido observar indefinidamente.
- */
 interface PrestamoRepository {
     fun observarEquipos(): Flow<List<Equipo>>
     fun observarSolicitudes(): Flow<List<SolicitudPrestamo>>
@@ -31,4 +23,13 @@ interface PrestamoRepository {
     suspend fun rechazarSolicitud(id: Int): Result<Unit>
     suspend fun entregarSolicitud(id: Int): Result<Unit>
     suspend fun devolverSolicitud(id: Int): Result<Unit>
+
+    /**
+     * Semana 8: intenta traer el catálogo del servidor remoto y
+     * fusionarlo con Room (estrategia local-first, actividad 26).
+     * Nunca lanza una excepción sin controlar: siempre devuelve
+     * Result, para que el ViewModel decida qué mostrar sin arriesgar
+     * la app si no hay backend real disponible.
+     */
+    suspend fun sincronizarCatalogoRemoto(): Result<Unit>
 }

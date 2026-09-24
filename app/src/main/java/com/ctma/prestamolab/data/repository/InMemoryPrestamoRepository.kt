@@ -16,12 +16,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Línea base heredada, conservada para pruebas unitarias (JVM) que
- * no necesitan Room/Android real, y como referencia histórica del
- * primer incremento. Actualizada en Semana 7 para exponer Flow igual
- * que RoomPrestamoRepository, usando StateFlow en vez de listas
- * mutables sueltas: cada mutación emite un nuevo valor, que es
- * exactamente lo que hace Room del otro lado.
+ * Línea base heredada, conservada para pruebas unitarias JVM.
+ * sincronizarCatalogoRemoto() siempre falla aquí a propósito: esta
+ * implementación no tiene capa de red (ni la necesita), así que
+ * simplemente informa que la sincronización no aplica en este modo.
  */
 class InMemoryPrestamoRepository : PrestamoRepository {
 
@@ -90,6 +88,9 @@ class InMemoryPrestamoRepository : PrestamoRepository {
 
     override suspend fun devolverSolicitud(id: Int): Result<Unit> =
         transicionar(id, ::puedeDevolverse, EstadoSolicitud.DEVUELTA, EstadoEquipo.DISPONIBLE, "Solo una solicitud ENTREGADA puede marcarse como devuelta.")
+
+    override suspend fun sincronizarCatalogoRemoto(): Result<Unit> =
+        Result.failure(UnsupportedOperationException("InMemoryPrestamoRepository no tiene capa de red; se usa solo en pruebas unitarias."))
 
     private fun transicionar(
         id: Int,
