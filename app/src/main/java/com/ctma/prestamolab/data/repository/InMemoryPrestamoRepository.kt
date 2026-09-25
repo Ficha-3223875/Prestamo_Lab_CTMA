@@ -3,9 +3,7 @@ package com.ctma.prestamolab.data.repository
 import com.ctma.prestamolab.model.CategoriaEquipo
 import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.EstadoEquipo
-import com.ctma.prestamolab.model.EstadoEvidencia
 import com.ctma.prestamolab.model.EstadoSolicitud
-import com.ctma.prestamolab.model.EvidenciaFoto
 import com.ctma.prestamolab.model.SolicitudPrestamo
 import com.ctma.prestamolab.model.puedeAprobarse
 import com.ctma.prestamolab.model.puedeDevolverse
@@ -16,13 +14,17 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 
+/**
+ * Línea base heredada, conservada para pruebas unitarias JVM.
+ * sincronizarCatalogoRemoto() siempre falla aquí a propósito: esta
+ * implementación no tiene capa de red (ni la necesita), así que
+ * simplemente informa que la sincronización no aplica en este modo.
+ */
 class InMemoryPrestamoRepository : PrestamoRepository {
 
     private val equipoIdGenerator = AtomicInteger(1)
     private val solicitudIdGenerator = AtomicInteger(1)
-    private val evidenciaIdGenerator = AtomicInteger(1)
 
     private val _equipos = MutableStateFlow(
         listOf(
@@ -35,7 +37,6 @@ class InMemoryPrestamoRepository : PrestamoRepository {
         )
     )
     private val _solicitudes = MutableStateFlow<List<SolicitudPrestamo>>(emptyList())
-    private val _evidencias = MutableStateFlow<List<EvidenciaFoto>>(emptyList())
 
     private fun sig(counter: AtomicInteger) = counter.getAndIncrement()
 
@@ -90,32 +91,6 @@ class InMemoryPrestamoRepository : PrestamoRepository {
 
     override suspend fun sincronizarCatalogoRemoto(): Result<Unit> =
         Result.failure(UnsupportedOperationException("InMemoryPrestamoRepository no tiene capa de red; se usa solo en pruebas unitarias."))
-
-    override fun observarEvidencias(solicitudId: Int): Flow<List<EvidenciaFoto>> =
-        _evidencias.map { lista -> lista.filter { it.solicitudId == solicitudId } }
-
-    override suspend fun agregarEvidencia(
-        solicitudId: Int,
-        uri: String,
-        luxAlCapturar: Float?
-    ): Result<EvidenciaFoto> = synchronized(this) {
-        val nueva = EvidenciaFoto(
-            id = sig(evidenciaIdGenerator),
-            solicitudId = solicitudId,
-            uri = uri,
-            fechaCapturaMillis = System.currentTimeMillis(),
-            luxAlCapturar = luxAlCapturar,
-            estado = EstadoEvidencia.LOCAL
-        )
-        _evidencias.value = _evidencias.value + nueva
-        Result.success(nueva)
-    }
-
-    override suspend fun sincronizarEvidencia(evidenciaId: Int): Result<Unit> = synchronized(this) {
-        val existe = _evidencias.value.any { it.id == evidenciaId }
-        if (!existe) return Result.failure(NoSuchElementException("La evidencia $evidenciaId no existe."))
-        Result.failure(UnsupportedOperationException("InMemoryPrestamoRepository no tiene capa de red; se usa solo en pruebas unitarias."))
-    }
 
     private fun transicionar(
         id: Int,

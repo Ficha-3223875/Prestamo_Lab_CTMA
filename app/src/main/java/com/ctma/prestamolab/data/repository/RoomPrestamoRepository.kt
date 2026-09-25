@@ -2,7 +2,6 @@ package com.ctma.prestamolab.data.repository
 
 import com.ctma.prestamolab.data.local.converter.aTexto
 import com.ctma.prestamolab.data.local.dao.EquipoDao
-import com.ctma.prestamolab.data.local.dao.EvidenciaDao
 import com.ctma.prestamolab.data.local.dao.SolicitudDao
 import com.ctma.prestamolab.data.local.entity.EquipoEntity
 import com.ctma.prestamolab.data.remote.EquipoRemoteDataSource
@@ -11,9 +10,7 @@ import com.ctma.prestamolab.data.remote.dto.aEntidad
 import com.ctma.prestamolab.model.CategoriaEquipo
 import com.ctma.prestamolab.model.Equipo
 import com.ctma.prestamolab.model.EstadoEquipo
-import com.ctma.prestamolab.model.EstadoEvidencia
 import com.ctma.prestamolab.model.EstadoSolicitud
-import com.ctma.prestamolab.model.EvidenciaFoto
 import com.ctma.prestamolab.model.SolicitudPrestamo
 import com.ctma.prestamolab.model.mapper.aDominio
 import com.ctma.prestamolab.model.mapper.aEntidad
@@ -22,15 +19,20 @@ import com.ctma.prestamolab.model.puedeDevolverse
 import com.ctma.prestamolab.model.puedeEntregarse
 import com.ctma.prestamolab.model.puedeRechazarse
 import com.ctma.prestamolab.model.validarFormularioSolicitud
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
+/**
+ * Implementación real con Room + Retrofit (Semana 6 y 8). Room sigue
+ * siendo la fuente de verdad visible (observarEquipos/observarSolicitudes
+ * son Flow sobre la base de datos local); sincronizarCatalogoRemoto()
+ * es la única operación que toca la red, y solo actualiza Room si tiene
+ * éxito — la UI nunca observa el Repository remoto directamente.
+ */
 class RoomPrestamoRepository(
     private val equipoDao: EquipoDao,
     private val solicitudDao: SolicitudDao,
-    private val evidenciaDao: EvidenciaDao,
     private val equipoRemoteDataSource: EquipoRemoteDataSource
 ) : PrestamoRepository {
 
@@ -106,6 +108,14 @@ class RoomPrestamoRepository(
     override suspend fun devolverSolicitud(id: Int): Result<Unit> =
         transicionar(id, ::puedeDevolverse, EstadoSolicitud.DEVUELTA, EstadoEquipo.DISPONIBLE, "Solo una solicitud ENTREGADA puede marcarse como devuelta.")
 
+    /**
+     * Semana 8: intenta sincronizar el catálogo con el servidor remoto.
+     * Como PréstamoLab no tiene backend real desplegado (ver
+     * docs/CONTRATO_API.md), esto va a fallar con SinConexion en la
+     * práctica — y eso es exactamente lo que se espera: demuestra que
+     * el patrón local-first protege la app incluso cuando la red no
+     * está disponible, sin bloquear ni dañar los datos que ya existen.
+     */
     override suspend fun sincronizarCatalogoRemoto(): Result<Unit> {
         return when (val resultado = equipoRemoteDataSource.obtenerEquipos()) {
             is ResultadoRed.Exito -> {
@@ -120,45 +130,6 @@ class RoomPrestamoRepository(
                 IllegalStateException("Sin conexión con el servidor. Mostrando datos locales.")
             )
         }
-    }
-
-    // --- Semana 9: evidencia fotográfica ---
-
-    override fun observarEvidencias(solicitudId: Int): Flow<List<EvidenciaFoto>> =
-        evidenciaDao.observarPorSolicitud(solicitudId).map { entidades -> entidades.map { it.aDominio() } }
-
-    override suspend fun agregarEvidencia(
-        solicitudId: Int,
-        uri: String,
-        luxAlCapturar: Float?
-    ): Result<EvidenciaFoto> {
-        val nueva = EvidenciaFoto(
-            id = 0,
-            solicitudId = solicitudId,
-            uri = uri,
-            fechaCapturaMillis = System.currentTimeMillis(),
-            luxAlCapturar = luxAlCapturar,
-            estado = EstadoEvidencia.LOCAL
-        ).aEntidad()
-        val nuevoId = evidenciaDao.insertar(nueva)
-        val creada = evidenciaDao.obtenerPorId(nuevoId.toInt())!!.aDominio()
-        return Result.success(creada)
-    }
-
-    /**
-     * Simula el ciclo LOCAL -> SUBIENDO -> FALLIDA (no hay backend
-     * real para llegar a SINCRONIZADA, igual que sincronizarCatalogoRemoto
-     * en Semana 8 — es el mismo patrón local-first aplicado a evidencias).
-     */
-    override suspend fun sincronizarEvidencia(evidenciaId: Int): Result<Unit> {
-        val entidad = evidenciaDao.obtenerPorId(evidenciaId)
-            ?: return Result.failure(NoSuchElementException("La evidencia $evidenciaId no existe."))
-
-        evidenciaDao.actualizar(entidad.copy(estado = EstadoEvidencia.SUBIENDO.name))
-        delay(500) // simula el tiempo de subida antes de fallar
-
-        evidenciaDao.actualizar(entidad.copy(estado = EstadoEvidencia.FALLIDA.name))
-        return Result.failure(IllegalStateException("Sin conexión con el servidor. La evidencia queda guardada localmente."))
     }
 
     private suspend fun transicionar(
