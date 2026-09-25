@@ -22,12 +22,7 @@ class MainActivity : ComponentActivity() {
     private val database by lazy { AppDatabase.obtenerInstancia(applicationContext) }
     private val equipoRemoteDataSource by lazy { EquipoRemoteDataSource(RetrofitConfig.apiService) }
     private val repository by lazy {
-        RoomPrestamoRepository(
-            database.equipoDao(),
-            database.solicitudDao(),
-            database.evidenciaDao(),
-            equipoRemoteDataSource
-        )
+        RoomPrestamoRepository(database.equipoDao(), database.solicitudDao(), equipoRemoteDataSource)
     }
     private val preferencias by lazy { FiltrosPreferences(applicationContext) }
 

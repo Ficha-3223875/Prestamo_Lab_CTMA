@@ -2,36 +2,30 @@ package com.ctma.prestamolab.data.remote
 
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * Ambientes de ejecución (Semana 9, actividad 34: "Configurar
- * variables/URLs por ambiente sin exponer secretos"). En un proyecto
- * real, AMBIENTE_ACTUAL vendría de BuildConfig (generado por Gradle a
- * partir del buildType/flavor), nunca hardcodeado así en el código
- * fuente que se sube al repositorio. Aquí queda fijo en DEV a
- * propósito: PréstamoLab no tiene servidores stage/prod reales, así
- * que las tres URLs son placeholders — ninguna existe de verdad, y
- * ninguna contiene un secreto o token real.
+ * Configuración del cliente HTTP (Semana 8, actividad 25).
+ *
+ * BASE_URL es un placeholder: PréstamoLab no tiene backend real
+ * desplegado (ver docs/CONTRATO_API.md). Los timeouts se dejan
+ * deliberadamente CORTOS (3 segundos) para que, si alguna vez se
+ * intenta sincronizar contra este host inexistente, la app falle
+ * rápido y vuelva a los datos locales en vez de dejar a la persona
+ * esperando una respuesta que nunca va a llegar.
  */
-enum class Ambiente(val baseUrl: String) {
-    DEV("https://api-dev.prestamolab.ctma.example/v1/"),
-    STAGE("https://api-stage.prestamolab.ctma.example/v1/"),
-    PROD("https://api.prestamolab.ctma.example/v1/")
-}
-
 object RetrofitConfig {
 
-    private val AMBIENTE_ACTUAL = Ambiente.DEV
+    private const val BASE_URL = "https://api.prestamolab.ctma.example/v1/"
 
     /**
-     * Token CONCEPTUAL — no es un secreto real ni funciona contra
-     * ningún servidor. En un proyecto real este valor NUNCA se
-     * escribiría en el código: vendría de un almacenamiento seguro
-     * (EncryptedSharedPreferences / Android Keystore) o se inyectaría
-     * en tiempo de compilación desde un secreto de CI.
+     * Interceptor de token CONCEPTUAL (actividad de Semana 8: "token
+     * conceptual sin exponer secretos"). "token-demo-no-real" no es un
+     * secreto real ni funciona contra ningún servidor: es solo para
+     * demostrar dónde y cómo se agregaría la cabecera Authorization.
      */
     private val interceptorToken = Interceptor { chain ->
         val peticionConToken = chain.request().newBuilder()
@@ -49,7 +43,7 @@ object RetrofitConfig {
 
     val apiService: PrestamoLabApiService by lazy {
         Retrofit.Builder()
-            .baseUrl(AMBIENTE_ACTUAL.baseUrl)
+            .baseUrl(BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

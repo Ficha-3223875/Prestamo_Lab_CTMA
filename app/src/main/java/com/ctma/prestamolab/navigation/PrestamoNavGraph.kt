@@ -56,10 +56,7 @@ fun PrestamoNavGraph(
             arguments = listOf(navArgument("equipoId") { type = NavType.IntType })
         ) { backStackEntry ->
             val equipoId = backStackEntry.arguments?.getInt("equipoId") ?: -1
-            // Se lee de uiState.equipos (no de viewModel.obtenerEquipo) a
-            // propósito: así esta pantalla SÍ queda suscrita a los cambios
-            // de Compose cuando el equipo cambie de estado en otra parte.
-            val equipo = uiState.equipos.find { it.id == equipoId }
+            val equipo = viewModel.obtenerEquipo(equipoId)
             EquipoDetalleScreen(
                 equipo = equipo,
                 onSolicitar = { id -> navController.navigate(PrestamoDestinos.solicitar(id)) },
@@ -72,7 +69,7 @@ fun PrestamoNavGraph(
             arguments = listOf(navArgument("equipoId") { type = NavType.IntType })
         ) { backStackEntry ->
             val equipoId = backStackEntry.arguments?.getInt("equipoId") ?: -1
-            val equipo = uiState.equipos.find { it.id == equipoId }
+            val equipo = viewModel.obtenerEquipo(equipoId)
             SolicitarScreen(
                 equipo = equipo,
                 guardando = uiState.guardando,
@@ -107,30 +104,14 @@ fun PrestamoNavGraph(
             arguments = listOf(navArgument("solicitudId") { type = NavType.IntType })
         ) { backStackEntry ->
             val solicitudId = backStackEntry.arguments?.getInt("solicitudId") ?: -1
-            // Igual que con equipo: se lee de uiState.solicitudes, no de
-            // viewModel.obtenerSolicitud, para que esta pantalla se
-            // redibuje sola cuando cambie el estado (aprobar/entregar/
-            // devolver) sin necesitar salir y volver a entrar.
-            val solicitud = uiState.solicitudes.find { it.id == solicitudId }
+            val solicitud = viewModel.obtenerSolicitud(solicitudId)
             SolicitudDetalleScreen(
                 solicitud = solicitud,
-                evidencias = viewModel.observarEvidencias(solicitudId),
                 onAprobar = { id -> viewModel.aprobarSolicitud(id) },
                 onRechazar = { id -> viewModel.rechazarSolicitud(id) },
                 onEntregar = { id -> viewModel.entregarSolicitud(id) },
-                onDevolver = { id ->
-                    viewModel.devolverSolicitud(id, onDevuelta = {
-                        val equipo = solicitud?.let { viewModel.obtenerEquipo(it.equipoId) }
-                        com.ctma.prestamolab.data.notifications.NotificacionesHelper
-                            .mostrarNotificacionDevolucion(
-                                context = navController.context,
-                                nombreEquipo = equipo?.nombre ?: "equipo"
-                            )
-                    })
-                },
+                onDevolver = { id -> viewModel.devolverSolicitud(id) },
                 onCancelar = { id -> viewModel.cancelarSolicitud(id) },
-                onAgregarEvidencia = { id, uri, lux -> viewModel.agregarEvidencia(id, uri, lux) },
-                onSincronizarEvidencia = { id -> viewModel.sincronizarEvidencia(id) },
                 onVolver = { navController.popBackStack() }
             )
         }
