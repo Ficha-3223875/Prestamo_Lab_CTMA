@@ -1,6 +1,7 @@
 package com.ctma.prestamolab.data.repository
 
 import com.ctma.prestamolab.model.Equipo
+import com.ctma.prestamolab.model.EvidenciaFoto
 import com.ctma.prestamolab.model.SolicitudPrestamo
 import kotlinx.coroutines.flow.Flow
 
@@ -24,12 +25,10 @@ interface PrestamoRepository {
     suspend fun entregarSolicitud(id: Int): Result<Unit>
     suspend fun devolverSolicitud(id: Int): Result<Unit>
 
-    /**
-     * Semana 8: intenta traer el catálogo del servidor remoto y
-     * fusionarlo con Room (estrategia local-first, actividad 26).
-     * Nunca lanza una excepción sin controlar: siempre devuelve
-     * Result, para que el ViewModel decida qué mostrar sin arriesgar
-     * la app si no hay backend real disponible.
-     */
     suspend fun sincronizarCatalogoRemoto(): Result<Unit>
+
+    // --- Semana 9: evidencia fotográfica ---
+    fun observarEvidencias(solicitudId: Int): Flow<List<EvidenciaFoto>>
+    suspend fun agregarEvidencia(solicitudId: Int, uri: String, luxAlCapturar: Float?): Result<EvidenciaFoto>
+    suspend fun sincronizarEvidencia(evidenciaId: Int): Result<Unit>
 }

@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.ctma.prestamolab.data.preferences.PreferenciasFiltro
 import com.ctma.prestamolab.data.repository.PrestamoRepository
 import com.ctma.prestamolab.model.CategoriaEquipo
+import com.ctma.prestamolab.model.EvidenciaFoto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,36 +61,22 @@ class PrestamoViewModel(
         }
     }
 
-    /**
-     * Semana 8: sincronización manual (botón, no automática) contra el
-     * servidor remoto. Room sigue mostrando datos de inmediato sin
-     * esperar esto — si falla (lo más probable, dado que no hay
-     * backend real), simplemente se informa y la app sigue funcionando
-     * igual con lo que ya tenía en Room.
-     */
     fun sincronizarConServidor() {
         if (_uiState.value.sincronizando) return
         _uiState.update { it.copy(sincronizando = true, mensaje = null) }
         viewModelScope.launch {
             try {
                 repository.sincronizarCatalogoRemoto()
-                    .onSuccess {
-                        _uiState.update { it.copy(sincronizando = false, mensaje = "Catálogo sincronizado con el servidor.") }
-                    }
+                    .onSuccess { _uiState.update { it.copy(sincronizando = false, mensaje = "Catálogo sincronizado con el servidor.") } }
                     .onFailure { error ->
                         _uiState.update {
-                            it.copy(
-                                sincronizando = false,
-                                mensaje = (error.message ?: "No fue posible sincronizar.") + " Se sigue mostrando el catálogo local."
-                            )
+                            it.copy(sincronizando = false, mensaje = (error.message ?: "No fue posible sincronizar.") + " Se sigue mostrando el catálogo local.")
                         }
                     }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(sincronizando = false, mensaje = "No fue posible sincronizar. Se sigue mostrando el catálogo local.")
-                }
+                _uiState.update { it.copy(sincronizando = false, mensaje = "No fue posible sincronizar. Se sigue mostrando el catálogo local.") }
             }
         }
     }
@@ -110,9 +98,7 @@ class PrestamoViewModel(
                     _uiState.update { estado -> estado.copy(guardando = false, mensaje = "Solicitud registrada.") }
                     onExito()
                 }.onFailure { error ->
-                    _uiState.update { estado ->
-                        estado.copy(guardando = false, mensaje = error.message ?: "No fue posible registrar la solicitud.")
-                    }
+                    _uiState.update { estado -> estado.copy(guardando = false, mensaje = error.message ?: "No fue posible registrar la solicitud.") }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -126,7 +112,28 @@ class PrestamoViewModel(
     fun aprobarSolicitud(id: Int) = gestionar(id, repository::aprobarSolicitud, "Solicitud aprobada.")
     fun rechazarSolicitud(id: Int) = gestionar(id, repository::rechazarSolicitud, "Solicitud rechazada.")
     fun entregarSolicitud(id: Int) = gestionar(id, repository::entregarSolicitud, "Equipo marcado como entregado.")
-    fun devolverSolicitud(id: Int) = gestionar(id, repository::devolverSolicitud, "Devolución registrada.")
+
+    /**
+     * onDevuelta se invoca solo si la transición tuvo éxito — la
+     * pantalla la usa para disparar la notificación local (Semana 9),
+     * después de confirmar el permiso, no antes.
+     */
+    fun devolverSolicitud(id: Int, onDevuelta: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                repository.devolverSolicitud(id)
+                    .onSuccess {
+                        _uiState.update { it.copy(mensaje = "Devolución registrada.") }
+                        onDevuelta()
+                    }
+                    .onFailure { error -> _uiState.update { it.copy(mensaje = error.message ?: "No fue posible completar la acción.") } }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(mensaje = "Ocurrió un problema inesperado. Intenta de nuevo.") }
+            }
+        }
+    }
 
     private fun gestionar(id: Int, accion: suspend (Int) -> Result<Unit>, mensajeExito: String) {
         viewModelScope.launch {
@@ -139,6 +146,27 @@ class PrestamoViewModel(
             } catch (e: Exception) {
                 _uiState.update { it.copy(mensaje = "Ocurrió un problema inesperado. Intenta de nuevo.") }
             }
+        }
+    }
+
+    // --- Semana 9: evidencia fotográfica ---
+
+    fun observarEvidencias(solicitudId: Int): Flow<List<EvidenciaFoto>> =
+        repository.observarEvidencias(solicitudId)
+
+    fun agregarEvidencia(solicitudId: Int, uri: String, luxAlCapturar: Float?) {
+        viewModelScope.launch {
+            repository.agregarEvidencia(solicitudId, uri, luxAlCapturar)
+                .onSuccess { _uiState.update { it.copy(mensaje = "Evidencia guardada localmente.") } }
+                .onFailure { error -> _uiState.update { it.copy(mensaje = error.message ?: "No fue posible guardar la evidencia.") } }
+        }
+    }
+
+    fun sincronizarEvidencia(evidenciaId: Int) {
+        viewModelScope.launch {
+            repository.sincronizarEvidencia(evidenciaId)
+                .onSuccess { _uiState.update { it.copy(mensaje = "Evidencia sincronizada.") } }
+                .onFailure { error -> _uiState.update { it.copy(mensaje = error.message ?: "No fue posible sincronizar la evidencia.") } }
         }
     }
 
