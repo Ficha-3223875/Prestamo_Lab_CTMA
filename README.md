@@ -174,7 +174,7 @@ La aplicación está construida siguiendo la **Arquitectura Limpia (Clean Archit
      ```
   3. **UI Compose**: En `SolicitarPrestamoScreen.kt` el `OutlinedTextField` recibe:
      ```kotlin
-     isError = formState.errorDuracion != null,
+     isError = formState.errorDuracion != null
      supportingText = { formState.errorDuracion?.let { Text(it) } }
      ```
 * **Trazabilidad a la Prueba**:
