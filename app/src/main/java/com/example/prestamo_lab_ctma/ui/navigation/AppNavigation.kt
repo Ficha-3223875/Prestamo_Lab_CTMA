@@ -152,6 +152,7 @@ fun AppNavigation() {
                     onPropositoChange = viewModel::onPropositoChange,
                     onDuracionChange = viewModel::onDuracionChange,
                     onCapturePhoto = { navController.navigate(Screen.Camera.route) },
+                    onPhotoSelected = viewModel::onPhotoCaptured,
                     onGuardar = { viewModel.guardarSolicitud(id) },
                     onBack = { navController.popBackStack() }
                 )

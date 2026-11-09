@@ -87,7 +87,7 @@ class PrestamoViewModel(
     }
 
     fun onPhotoCaptured(path: String) {
-        _formularioState.update { it.copy(photoPath = path) }
+        _formularioState.update { it.copy(photoPath = path.ifBlank { null }) }
     }
 
     private fun validarFormulario() {

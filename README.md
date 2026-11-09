@@ -63,9 +63,10 @@ La aplicación está construida siguiendo la **Arquitectura Limpia (Clean Archit
 3. **Formulario de Solicitud con Validaciones Síncronas**:
    * Captura de ambiente/destino, propósito y duración.
    * Validación reactiva en tiempo real con mensajes de error individuales.
-4. **Integración con Hardware (Cámara y Evidencia Fotográfica)**:
-   * Captura de fotos del equipo mediante **CameraX** en la pantalla `CameraCapture`.
-   * Almacenamiento de ruta física en Room y renderizado con **Coil** en el detalle de solicitud.
+4. **Integración con Hardware y Multimedia (Cámara y Galería)**:
+   * Captura de fotos en tiempo real mediante **CameraX** en la pantalla `CameraCapture`.
+   * Selección de imágenes desde la **Galería o Almacenamiento local del dispositivo** usando `ActivityResultContracts.GetContent()`.
+   * Copia segura al caché privado de la app, almacenamiento de la ruta en Room y vista previa/renderizado reactivo con **Coil**.
 5. **Confirmación Háptica por Vibración**:
    * Vibración física del dispositivo al completar una solicitud exitosa utilizando `HardwareManager`.
 6. **Gestión de Mis Solicitudes y Cancelación Atómica**:
